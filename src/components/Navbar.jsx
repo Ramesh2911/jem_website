@@ -1,135 +1,164 @@
-import { useState } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
-import { Menu, X, LogOut, ChevronDown, CreditCard, Home } from 'lucide-react';
+import { useState, useEffect } from 'react'
+import { Link, NavLink } from 'react-router-dom'
+import { Menu, X, ChevronDown } from 'lucide-react'
+import Logo from './Logo'
+
+const nav = [
+  { label: 'Home', to: '/' },
+  { label: 'About', to: '/about' },
+  {
+    label: 'Loans',
+    to: '/loans',
+    children: [
+      { label: 'All Loan Products', to: '/loans' },
+      { label: 'Home Loan', to: '/loans/home-loan' },
+      { label: 'Check Eligibility', to: '/eligibility' },
+      { label: 'EMI Calculator', to: '/emi-calculator' },
+    ],
+  },
+  { label: 'Invest', to: '/invest' },
+  { label: 'Resources', to: '/faq' },
+  { label: 'Contact', to: '/contact' },
+]
 
 export default function Navbar() {
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [profileOpen, setProfileOpen] = useState(false);
-  const location = useLocation();
-  const navigate = useNavigate();
-  const { user, isAuthenticated, logout } = useAuth();
+  const [open, setOpen] = useState(false)
+  const [scrolled, setScrolled] = useState(false)
+  const [loansOpen, setLoansOpen] = useState(false)
 
-  const handleLogout = () => { logout(); navigate('/'); setProfileOpen(false); };
-
-  const publicLinks = [
-    { path: '/', label: 'Home' },
-    { path: '/loan-products', label: 'Loan Products' },
-    { path: '/emi-calculator', label: 'EMI Calculator' },
-  ];
-
-  const customerLinks = [
-    { path: '/dashboard', label: 'Dashboard', icon: Home },
-  ];
+  useEffect(() => {
+    const onScroll = () => setScrolled(window.scrollY > 8)
+    window.addEventListener('scroll', onScroll)
+    return () => window.removeEventListener('scroll', onScroll)
+  }, [])
 
   return (
-    <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-slate-200/60">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center justify-between h-16">
-          {/* Logo */}
-          <Link to="/" className="flex items-center gap-2.5 group">
-            <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-[#D4A843] to-[#B8922E] flex items-center justify-center shadow-lg shadow-[#D4A843]/20 group-hover:scale-105 transition-transform">
-              <span className="text-[#0F172A] font-extrabold text-sm">JF</span>
-            </div>
-            <div className="hidden sm:block">
-              <span className="font-bold text-slate-900 text-[15px] tracking-tight">JEM FINANCE</span>
-            </div>
-          </Link>
+    <header
+      className={`sticky top-0 z-50 transition-shadow ${
+        scrolled ? 'shadow-[0_1px_0_0_rgba(11,31,58,0.08)]' : ''
+      } bg-white/90 backdrop-blur-md`}
+    >
+      <div className="container-page flex items-center justify-between h-[68px]">
+        <Logo />
 
-          {/* Desktop Nav */}
-          <div className="hidden md:flex items-center gap-1">
-            {publicLinks.map((link) => (
-              <Link
-                key={link.path}
-                to={link.path}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                  location.pathname === link.path
-                    ? 'bg-[#0F172A] text-white'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                }`}
+        <nav className="hidden lg:flex items-center gap-1">
+          {nav.map((item) =>
+            item.children ? (
+              <div
+                key={item.label}
+                className="relative"
+                onMouseEnter={() => setLoansOpen(true)}
+                onMouseLeave={() => setLoansOpen(false)}
               >
-                {link.label}
-              </Link>
-            ))}
-            {isAuthenticated && customerLinks.map((link) => (
-              <Link
-                key={link.path}
-                to={link.path}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                  location.pathname === link.path
-                    ? 'bg-[#0F172A] text-white'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
-                }`}
-              >
-                {link.label}
-              </Link>
-            ))}
-          </div>
-
-          {/* Right side */}
-          <div className="flex items-center gap-3">
-            {isAuthenticated ? (
-              <div className="relative">
-                <button
-                  onClick={() => setProfileOpen(!profileOpen)}
-                  aria-label="Account menu"
-                  aria-expanded={profileOpen}
-                  className="flex items-center gap-2.5 px-3 py-1.5 rounded-xl hover:bg-slate-100 transition-colors"
-                >
-                  <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-[#1E3A5F] to-[#0F172A] flex items-center justify-center text-white text-xs font-bold">
-                    {user?.first_name?.[0] || user?.profile?.first_name?.[0] || 'U'}
-                  </div>
-                  <div className="hidden sm:block text-left">
-                    <p className="text-[13px] font-semibold text-slate-700 leading-tight">{user?.first_name || user?.profile?.first_name || 'User'}</p>
-                  </div>
-                  <ChevronDown size={14} className={`text-slate-400 transition-transform ${profileOpen ? 'rotate-180' : ''}`} />
+                <button className="flex items-center gap-1 px-3.5 py-2 text-[15px] font-medium text-ink-900/80 hover:text-navy-900 rounded-lg transition-colors focus-ring">
+                  {item.label}
+                  <ChevronDown size={15} className={`transition-transform ${loansOpen ? 'rotate-180' : ''}`} />
                 </button>
-
-                {profileOpen && (
-                  <>
-                    <div className="fixed inset-0 z-40" onClick={() => setProfileOpen(false)} />
-                    <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-2xl shadow-xl border border-slate-200/80 py-2 animate-scaleIn z-50">
-                      <div className="px-4 py-3 border-b border-slate-100">
-                        <p className="text-sm font-semibold text-slate-800">{user?.first_name || user?.profile?.first_name}</p>
-                        <p className="text-xs text-slate-400">{user?.mobile || user?.email}</p>
-                      </div>
-                      <Link to="/dashboard" onClick={() => setProfileOpen(false)} className="flex items-center gap-3 px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors"><CreditCard size={16} /> Dashboard</Link>
-                      <button onClick={handleLogout} className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors"><LogOut size={16} /> Sign Out</button>
-                    </div>
-                  </>
-                )}
+                <div
+                  className={`absolute left-0 top-full pt-2 w-56 transition-all duration-150 ${
+                    loansOpen ? 'opacity-100 translate-y-0 visible' : 'opacity-0 -translate-y-1 invisible'
+                  }`}
+                >
+                  <div className="bg-white rounded-xl shadow-xl ring-1 ring-navy-900/5 p-2">
+                    {item.children.map((c) => (
+                      <Link
+                        key={c.to}
+                        to={c.to}
+                        className="block px-3 py-2.5 rounded-lg text-[14px] text-ink-900/80 hover:bg-navy-50 hover:text-navy-900 transition-colors"
+                      >
+                        {c.label}
+                      </Link>
+                    ))}
+                  </div>
+                </div>
               </div>
             ) : (
-              <div className="flex items-center gap-2">
-                <Link to="/login" className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 rounded-lg hover:bg-slate-100 transition-all">Sign In</Link>
-                <Link to="/register" className="px-4 py-2 bg-gradient-to-r from-[#D4A843] to-[#B8922E] text-[#0F172A] text-sm font-semibold rounded-xl hover:shadow-lg hover:shadow-[#D4A843]/25 transition-all">Get Started</Link>
-              </div>
-            )}
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className={({ isActive }) =>
+                  `px-3.5 py-2 text-[15px] font-medium rounded-lg transition-colors focus-ring ${
+                    isActive ? 'text-navy-900' : 'text-ink-900/80 hover:text-navy-900'
+                  }`
+                }
+              >
+                {item.label}
+              </NavLink>
+            )
+          )}
+        </nav>
 
-            <button onClick={() => setMobileOpen(!mobileOpen)} aria-label={mobileOpen ? 'Close menu' : 'Open menu'} className="md:hidden p-2 hover:bg-slate-100 rounded-lg">
-              {mobileOpen ? <X size={20} /> : <Menu size={20} />}
-            </button>
-          </div>
+        <div className="hidden lg:flex items-center gap-3">
+          <Link
+            to="/login"
+            className="px-4 py-2 text-[15px] font-medium text-navy-900 hover:text-green-700 transition-colors focus-ring"
+          >
+            Sign In
+          </Link>
+          <Link
+            to="/register"
+            className="px-5 py-2.5 rounded-lg bg-green-600 text-white text-[15px] font-semibold hover:bg-green-700 transition-colors shadow-[0_6px_16px_-6px_rgba(23,138,76,0.6)] focus-ring"
+          >
+            Apply Now
+          </Link>
         </div>
+
+        <button
+          onClick={() => setOpen((v) => !v)}
+          className="lg:hidden p-2 -mr-2 text-navy-900 focus-ring rounded-lg"
+          aria-label="Toggle menu"
+        >
+          {open ? <X size={24} /> : <Menu size={24} />}
+        </button>
       </div>
 
-      {/* Mobile Nav */}
-      {mobileOpen && (
-        <div className="md:hidden border-t border-slate-200/60 bg-white animate-fadeIn">
-          <div className="px-4 py-3 space-y-1">
-            {publicLinks.map((link) => (
-              <Link key={link.path} to={link.path} onClick={() => setMobileOpen(false)}
-                className={`block px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${location.pathname === link.path ? 'bg-[#0F172A] text-white' : 'text-slate-600 hover:bg-slate-50'}`}
-              >{link.label}</Link>
+      {open && (
+        <div className="lg:hidden border-t border-navy-900/8 bg-white">
+          <div className="container-page py-3 flex flex-col">
+            {nav.map((item) => (
+              <div key={item.label}>
+                <Link
+                  to={item.to}
+                  onClick={() => setOpen(false)}
+                  className="block py-3 text-[15px] font-medium text-ink-900/85 border-b border-navy-900/5"
+                >
+                  {item.label}
+                </Link>
+                {item.children && (
+                  <div className="pl-4 flex flex-col">
+                    {item.children.slice(1).map((c) => (
+                      <Link
+                        key={c.to}
+                        to={c.to}
+                        onClick={() => setOpen(false)}
+                        className="py-2.5 text-[14px] text-ink-600 border-b border-navy-900/5"
+                      >
+                        {c.label}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </div>
             ))}
-            {isAuthenticated && customerLinks.map((link) => (
-              <Link key={link.path} to={link.path} onClick={() => setMobileOpen(false)}
-                className={`block px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${location.pathname === link.path ? 'bg-[#0F172A] text-white' : 'text-slate-600 hover:bg-slate-50'}`}
-              >{link.label}</Link>
-            ))}
+            <div className="flex gap-3 mt-4">
+              <Link
+                to="/login"
+                onClick={() => setOpen(false)}
+                className="flex-1 text-center px-4 py-2.5 rounded-lg border border-navy-900/15 text-navy-900 font-medium"
+              >
+                Sign In
+              </Link>
+              <Link
+                to="/register"
+                onClick={() => setOpen(false)}
+                className="flex-1 text-center px-4 py-2.5 rounded-lg bg-green-600 text-white font-semibold"
+              >
+                Apply Now
+              </Link>
+            </div>
           </div>
         </div>
       )}
-    </nav>
-  );
+    </header>
+  )
 }

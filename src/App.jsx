@@ -1,127 +1,46 @@
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider, useAuth } from './contexts/AuthContext';
-import Navbar from './components/Navbar';
-import Footer from './components/Footer';
-import HomePage from './pages/public/HomePage';
-import LoanProductsPage from './pages/public/LoanProductsPage';
-import EMICalculatorPage from './pages/public/EMICalculatorPage';
-import LoginPage from './pages/public/LoginPage';
-import RegisterPage from './pages/public/RegisterPage';
-import DashboardPage from './pages/customer/DashboardPage';
+import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import PublicLayout from './components/PublicLayout'
+import Home from './pages/Home'
+import About from './pages/About'
+import LoanProducts from './pages/LoanProducts'
+import LoanProductDetail from './pages/LoanProductDetail'
+import LoanEligibility from './pages/LoanEligibility'
+import EMICalculator from './pages/EMICalculator'
+import Investor from './pages/Investor'
+import FAQ from './pages/FAQ'
+import Contact from './pages/Contact'
+import Login from './pages/Login'
+import Register from './pages/Register'
+import PrivacyPolicy from './pages/PrivacyPolicy'
+import Terms from './pages/Terms'
+import CustomerDashboard from './pages/CustomerDashboard'
+import InvestorDashboard from './pages/InvestorDashboard'
 
-function PublicLayout({ children }) {
+export default function App() {
   return (
-    <div className="min-h-screen flex flex-col">
-      <Navbar />
-      <main className="flex-1">{children}</main>
-      <Footer />
-    </div>
-  );
+    <BrowserRouter>
+      <Routes>
+        <Route element={<PublicLayout />}>
+          <Route path="/" element={<Home />} />
+          <Route path="/about" element={<About />} />
+          <Route path="/loans" element={<LoanProducts />} />
+          <Route path="/loans/:slug" element={<LoanProductDetail />} />
+          <Route path="/eligibility" element={<LoanEligibility />} />
+          <Route path="/emi-calculator" element={<EMICalculator />} />
+          <Route path="/invest" element={<Investor />} />
+          <Route path="/faq" element={<FAQ />} />
+          <Route path="/contact" element={<Contact />} />
+          <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+          <Route path="/terms" element={<Terms />} />
+        </Route>
+
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route path="/dashboard/customer" element={<CustomerDashboard />} />
+        <Route path="/dashboard/investor" element={<InvestorDashboard />} />
+
+        <Route path="*" element={<Home />} />
+      </Routes>
+    </BrowserRouter>
+  )
 }
-
-function CustomerLayout({ children }) {
-  return (
-    <div className="min-h-screen flex flex-col">
-      <Navbar />
-      <main className="flex-1 bg-gray-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {children}
-        </div>
-      </main>
-      <Footer />
-    </div>
-  );
-}
-
-function ProtectedRoute({ children }) {
-  const { isAuthenticated, loading } = useAuth();
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
-  if (!isAuthenticated) {
-    return <Navigate to="/login" replace />;
-  }
-
-  return <CustomerLayout>{children}</CustomerLayout>;
-}
-
-function AppRoutes() {
-  const { isAuthenticated, loading } = useAuth();
-
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
-
-  return (
-    <Routes>
-      {/* Public Routes */}
-      <Route
-        path="/"
-        element={
-          <PublicLayout>
-            <HomePage />
-          </PublicLayout>
-        }
-      />
-      <Route
-        path="/loan-products"
-        element={
-          <PublicLayout>
-            <LoanProductsPage />
-          </PublicLayout>
-        }
-      />
-      <Route
-        path="/emi-calculator"
-        element={
-          <PublicLayout>
-            <EMICalculatorPage />
-          </PublicLayout>
-        }
-      />
-      <Route
-        path="/login"
-        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage />}
-      />
-      <Route
-        path="/register"
-        element={isAuthenticated ? <Navigate to="/dashboard" replace /> : <RegisterPage />}
-      />
-
-      {/* Customer Routes */}
-      <Route
-        path="/dashboard"
-        element={
-          <ProtectedRoute>
-            <DashboardPage />
-          </ProtectedRoute>
-        }
-      />
-
-      {/* Redirect unknown routes */}
-      <Route path="*" element={<Navigate to="/" replace />} />
-    </Routes>
-  );
-}
-
-function App() {
-  return (
-    <Router>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
-    </Router>
-  );
-}
-
-export default App;
