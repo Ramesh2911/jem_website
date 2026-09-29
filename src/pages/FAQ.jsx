@@ -1,19 +1,33 @@
 import { useState } from 'react'
 import { ChevronDown } from 'lucide-react'
-
-const faqs = [
-  { q: 'What types of loans does JEM Finance offer?', a: 'We offer home, personal, business, car, bike, mobile, EV battery and custom private loans \u2014 each tailored with flexible tenures and competitive rates.' },
-  { q: 'What is the eligibility criteria for a loan?', a: 'Generally, applicants must be 21\u201360 years old, earn a minimum monthly income of ₹25,000, and hold a CIBIL score of 700 or above. Criteria vary slightly by product.' },
-  { q: 'How long does the approval process take?', a: 'Most loans are approved within 48\u201372 hours once all documents are submitted, with some products like mobile loans approved instantly.' },
-  { q: 'What documents are required?', a: 'Typically PAN and Aadhaar, income proof, bank statements and address proof. Specific documents depend on the loan type \u2014 see the Required Documents tab on any loan page.' },
-  { q: 'Can I make prepayments?', a: 'Yes. Most floating-rate loans allow free prepayment after the first 12 EMIs. Fixed-rate loans may carry a small prepayment charge.' },
-  { q: 'Is there a prepayment or foreclosure charge?', a: 'Foreclosure charges, if any, are disclosed upfront in your loan agreement and typically range from 0% to 2% of the outstanding principal.' },
-  { q: 'How does the investor program work?', a: 'Investors co-fund diversified pools of vetted retail loans and earn returns as borrowers repay. Track everything from your investor dashboard.' },
-  { q: 'Is my data and information secure?', a: 'Yes. We are ISO 27001 certified and use bank-grade encryption to protect all personal and financial data you share with us.' },
-]
+import { useSiteContent } from '../lib/content'
+import { errorMessage } from '../lib/api'
 
 export default function FAQ() {
   const [openIdx, setOpenIdx] = useState(0)
+  const { content, loading, error, refetch } = useSiteContent()
+  const faqs = ((content && content.faq) || []).filter(Boolean)
+
+  if (!content && (loading || error)) {
+    return (
+      <section className="bg-navy-900 py-24">
+        <div className="container-page text-center">
+          <p className="text-white/60 text-[15.5px]">
+            {loading ? 'Loading content...' : errorMessage(error)}
+          </p>
+          {!loading && (
+            <button
+              type="button"
+              onClick={refetch}
+              className="mt-5 px-6 py-2.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-[14.5px] font-semibold transition-colors focus-ring"
+            >
+              Retry
+            </button>
+          )}
+        </div>
+      </section>
+    )
+  }
 
   return (
     <div>

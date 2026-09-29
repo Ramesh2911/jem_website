@@ -1,15 +1,36 @@
 import LegalLayout from '../components/LegalLayout'
+import { useSiteContent } from '../lib/content'
+import { errorMessage } from '../lib/api'
 
-const sections = [
-  { heading: 'Introduction', body: 'JEM Finance Private Limited ("JEM Finance", "we", "us") respects your privacy. This policy explains what data we collect, how we use it, and the choices you have.' },
-  { heading: 'Information We Collect', body: 'We collect personal details you provide during application (name, contact information, income, identification documents) and usage data such as device information and site interactions.' },
-  { heading: 'How We Use Your Information', body: 'Your information is used to assess loan or investment eligibility, process applications, communicate updates, and comply with regulatory requirements.' },
-  { heading: 'Data Security', body: 'We employ bank-grade encryption, access controls and regular audits to protect your information from unauthorized access, alteration or disclosure.' },
-  { heading: 'Investment Terms', body: 'For investors, additional disclosures on fund allocation, risk and returns are provided separately in your investment agreement.' },
-  { heading: 'Limitation of Liability', body: 'While we take every reasonable precaution, JEM Finance is not liable for damages arising from circumstances beyond our reasonable control.' },
-  { heading: 'Contact Us', body: 'For questions about this policy or your data, reach us at support@jemfinance.com or write to our Kolkata office.' },
-]
+const today = () =>
+  new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })
 
 export default function PrivacyPolicy() {
-  return <LegalLayout title="Privacy Policy" updated="01 January 2026" sections={sections} />
+  const { content, loading, error, refetch } = useSiteContent()
+  const block = (content && content.privacy_policy) || null
+  const sections = Array.isArray(block) ? block.filter(Boolean) : []
+  const updated = (block && block.updated) || today()
+
+  if (!content && (loading || error)) {
+    return (
+      <section className="bg-navy-900 py-24">
+        <div className="container-page text-center">
+          <p className="text-white/60 text-[15.5px]">
+            {loading ? 'Loading content...' : errorMessage(error)}
+          </p>
+          {!loading && (
+            <button
+              type="button"
+              onClick={refetch}
+              className="mt-5 px-6 py-2.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-[14.5px] font-semibold transition-colors focus-ring"
+            >
+              Retry
+            </button>
+          )}
+        </div>
+      </section>
+    )
+  }
+
+  return <LegalLayout title="Privacy Policy" updated={updated} sections={sections} />
 }

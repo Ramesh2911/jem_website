@@ -1,3 +1,6 @@
+import { useState } from 'react'
+import { Eye, EyeOff, Lock, Smartphone } from 'lucide-react'
+
 export function Button({ as: As = 'button', className = '', variant = 'primary', size = 'md', children, ...props }) {
   const base = 'inline-flex items-center justify-center gap-2 font-semibold rounded-lg transition-all focus-ring disabled:opacity-50 disabled:pointer-events-none'
   const variants = {
@@ -59,6 +62,143 @@ export function Field({ label, children, hint }) {
 
 export function inputClass(extra = '') {
   return `w-full h-11 px-3.5 rounded-lg border border-navy-900/15 text-[14.5px] text-ink-900 placeholder:text-ink-400 focus:border-green-600 focus:ring-2 focus:ring-green-600/15 outline-none transition-all bg-white ${extra}`
+}
+
+const fieldShell =
+  'rounded-xl border bg-white transition-all focus-within:border-green-600 focus-within:ring-4 focus-within:ring-green-600/12'
+const fieldBorder = 'border-navy-900/15'
+const fieldInvalid = 'border-red-500/70 ring-4 ring-red-500/10'
+
+export function authInputClass(extra = '') {
+  return `w-full h-12 ${fieldShell} ${fieldBorder} px-4 text-[15px] text-ink-900 placeholder:text-ink-400 outline-none focus:border-green-600 ${extra}`
+}
+
+export function MobileInput({
+  value,
+  onChange,
+  placeholder = '98765 43210',
+  invalid = false,
+  ...props
+}) {
+  const [inner, setInner] = useState('')
+  const current = value === undefined ? inner : value
+
+  const update = (raw) => {
+    const digits = String(raw).replace(/\D/g, '').slice(0, 10)
+    setInner(digits)
+    onChange?.(digits)
+  }
+
+  return (
+    <div className={`relative flex h-12 ${fieldShell} ${invalid ? fieldInvalid : fieldBorder}`}>
+      <span className="flex items-center gap-2 pl-3.5 pr-3 border-r border-navy-900/10 text-[14.5px] font-semibold text-navy-900 select-none">
+        <Smartphone size={15} className="text-ink-400" />
+        +91
+      </span>
+      <input
+        {...props}
+        type="text"
+        inputMode="numeric"
+        autoComplete="tel-national"
+        maxLength={10}
+        placeholder={placeholder}
+        value={current}
+        onChange={(e) => update(e.target.value)}
+        className="flex-1 min-w-0 h-full px-3 bg-transparent outline-none text-[15px] font-semibold tracking-[0.05em] text-ink-900 placeholder:font-normal placeholder:tracking-normal placeholder:text-ink-400"
+      />
+      <span
+        className={`flex items-center pr-3.5 text-[11.5px] font-bold tabular-nums transition-colors ${
+          current.length === 10 ? 'text-green-600' : 'text-ink-400'
+        }`}
+      >
+        {current.length}/10
+      </span>
+    </div>
+  )
+}
+
+function strengthScore(pw) {
+  if (!pw) return 0
+  let s = 0
+  if (pw.length >= 8) s += 1
+  if (/[A-Z]/.test(pw)) s += 1
+  if (/[0-9]/.test(pw)) s += 1
+  if (/[^A-Za-z0-9]/.test(pw)) s += 1
+  return Math.max(s, 1)
+}
+
+const strengthLevels = [
+  { label: 'Weak', bar: 'bg-red-500', text: 'text-red-500' },
+  { label: 'Fair', bar: 'bg-amber-500', text: 'text-amber-500' },
+  { label: 'Good', bar: 'bg-green-500', text: 'text-green-500' },
+  { label: 'Strong', bar: 'bg-green-600', text: 'text-green-600' },
+]
+
+export function PasswordInput({
+  value,
+  onChange,
+  placeholder = 'Enter your password',
+  invalid = false,
+  showStrength = false,
+  autoComplete = 'current-password',
+  ...props
+}) {
+  const [show, setShow] = useState(false)
+  const [inner, setInner] = useState('')
+  const current = value === undefined ? inner : value
+
+  const update = (raw) => {
+    setInner(raw)
+    onChange?.(raw)
+  }
+
+  const score = strengthScore(current)
+  const level = strengthLevels[Math.max(score - 1, 0)]
+
+  return (
+    <div>
+      <div className={`relative flex h-12 ${fieldShell} ${invalid ? fieldInvalid : fieldBorder}`}>
+        <span className="flex items-center pl-3.5 pr-3 border-r border-navy-900/10">
+          <Lock size={15} className="text-ink-400" />
+        </span>
+        <input
+          {...props}
+          type={show ? 'text' : 'password'}
+          autoComplete={autoComplete}
+          placeholder={placeholder}
+          value={current}
+          onChange={(e) => update(e.target.value)}
+          className="flex-1 min-w-0 h-full px-3 bg-transparent outline-none text-[15px] text-ink-900 placeholder:text-ink-400 pr-11"
+        />
+        <button
+          type="button"
+          onClick={() => setShow((v) => !v)}
+          aria-label={show ? 'Hide password' : 'Show password'}
+          className="absolute right-2 top-1/2 -translate-y-1/2 p-2 rounded-lg text-ink-400 hover:text-navy-900 hover:bg-navy-50 transition-colors focus-ring"
+        >
+          {show ? <EyeOff size={17} /> : <Eye size={17} />}
+        </button>
+      </div>
+
+      {showStrength && current.length > 0 && (
+        <div className="mt-2.5">
+          <div className="flex gap-1.5">
+            {[0, 1, 2, 3].map((i) => (
+              <span
+                key={i}
+                className={`h-1 flex-1 rounded-full transition-colors ${
+                  i < score ? level.bar : 'bg-navy-100'
+                }`}
+              />
+            ))}
+          </div>
+          <p className={`mt-1.5 text-[12px] font-semibold ${level.text}`}>
+            Password strength: {level.label}
+          </p>
+        </div>
+      )}
+    </div>
+  )
 }
 
 export function Badge({ children, tone = 'green' }) {

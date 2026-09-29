@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import { Menu, X, ChevronDown } from 'lucide-react'
 import Logo from './Logo'
+import { useApi } from '../lib/content'
 
 const nav = [
   { label: 'Home', to: '/' },
@@ -11,7 +12,6 @@ const nav = [
     to: '/loans',
     children: [
       { label: 'All Loan Products', to: '/loans' },
-      { label: 'Home Loan', to: '/loans/home-loan' },
       { label: 'Check Eligibility', to: '/eligibility' },
       { label: 'EMI Calculator', to: '/emi-calculator' },
     ],
@@ -25,6 +25,18 @@ export default function Navbar() {
   const [open, setOpen] = useState(false)
   const [scrolled, setScrolled] = useState(false)
   const [loansOpen, setLoansOpen] = useState(false)
+
+  const { data: products } = useApi('/loans/products')
+  const productLinks = (Array.isArray(products) ? products : [])
+    .filter((p) => p && p.slug && p.name)
+    .slice(0, 6)
+    .map((p) => ({ label: p.name, to: `/loans/${p.slug}` }))
+
+  const items = nav.map((item) =>
+    item.children
+      ? { ...item, children: [item.children[0], ...productLinks, ...item.children.slice(1)] }
+      : item
+  )
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 8)
@@ -42,7 +54,7 @@ export default function Navbar() {
         <Logo />
 
         <nav className="hidden lg:flex items-center gap-1">
-          {nav.map((item) =>
+          {items.map((item) =>
             item.children ? (
               <div
                 key={item.label}
@@ -115,7 +127,7 @@ export default function Navbar() {
       {open && (
         <div className="lg:hidden border-t border-navy-900/8 bg-white">
           <div className="container-page py-3 flex flex-col">
-            {nav.map((item) => (
+            {items.map((item) => (
               <div key={item.label}>
                 <Link
                   to={item.to}

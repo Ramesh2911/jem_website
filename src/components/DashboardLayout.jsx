@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import {
   LayoutDashboard, User, FileText, HandCoins, Wallet, Bell, LogOut, Menu, X,
   TrendingUp, ArrowDownToLine, ArrowUpFromLine, History, ShieldCheck,
 } from 'lucide-react'
 import Logo from './Logo'
+import { api, clearSession, getUser, isAuthenticated, setUser } from '../lib/api'
 
 const customerNav = [
   { label: 'Dashboard', icon: LayoutDashboard, to: '/dashboard/customer' },
@@ -27,10 +28,47 @@ const investorNav = [
   { label: 'Notifications', icon: Bell, to: '#' },
 ]
 
-export default function DashboardLayout({ role = 'customer', name = 'User', children }) {
+export default function DashboardLayout({ role = 'customer', name = '', children }) {
   const [open, setOpen] = useState(false)
+  const [me, setMe] = useState(null)
   const navigate = useNavigate()
   const nav = role === 'customer' ? customerNav : investorNav
+
+  useEffect(() => {
+    if (!isAuthenticated()) return undefined
+    let alive = true
+    api
+      .get('/auth/me')
+      .then((res) => {
+        if (alive && res && res.data) {
+          setMe(res.data)
+          setUser(res.data)
+        }
+      })
+      .catch(() => {})
+    return () => {
+      alive = false
+    }
+  }, [])
+
+  const sessionUser = getUser()
+  const profile = (me && me.profile) || (sessionUser && sessionUser.profile) || null
+  const displayName =
+    (profile && profile.first_name) ||
+    (me && me.mobile) ||
+    (sessionUser && sessionUser.mobile) ||
+    name ||
+    'User'
+
+  const logout = async () => {
+    try {
+      await api.post('/auth/logout', {})
+    } catch {
+      /* ignore */
+    }
+    clearSession()
+    navigate('/login', { replace: true })
+  }
 
   const Sidebar = ({ mobile = false }) => (
     <div className="flex flex-col h-full">
@@ -55,7 +93,7 @@ export default function DashboardLayout({ role = 'customer', name = 'User', chil
       </nav>
       <div className="px-3 py-4 border-t border-white/10">
         <button
-          onClick={() => navigate('/login')}
+          onClick={logout}
           className="flex items-center gap-3 px-3.5 py-2.5 rounded-lg text-[14px] font-medium text-white/65 hover:bg-white/8 hover:text-white w-full transition-colors focus-ring"
         >
           <LogOut size={17} /> Logout
@@ -92,13 +130,16 @@ export default function DashboardLayout({ role = 'customer', name = 'User', chil
           <p className="font-display font-semibold text-navy-900 text-[16px] hidden lg:block">
             {role === 'customer' ? 'Customer Portal' : 'Investor Portal'}
           </p>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <button className="relative text-ink-500 focus-ring">
               <Bell size={19} />
               <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-green-600" />
             </button>
-            <div className="w-9 h-9 rounded-full bg-navy-900 text-white flex items-center justify-center font-semibold text-[13px]">
-              {name.charAt(0)}
+            <span className="hidden sm:block text-[14px] font-semibold text-navy-900 max-w-[160px] truncate">
+              {displayName}
+            </span>
+            <div className="w-9 h-9 rounded-full bg-navy-900 text-white flex items-center justify-center font-semibold text-[13px] shrink-0">
+              {displayName.charAt(0).toUpperCase()}
             </div>
           </div>
         </header>

@@ -2,8 +2,27 @@ import { Link } from 'react-router-dom'
 import { MapPin, Phone, Mail } from 'lucide-react'
 import Logo from './Logo'
 import { FacebookIcon, TwitterIcon, InstagramIcon, LinkedinIcon } from './SocialIcons'
+import { useApi, useSettings, useSiteContent } from '../lib/content'
+
+const badgeLabel = (b) => {
+  if (!b) return ''
+  if (typeof b === 'string') return b
+  return b.label || b.text || b.title || b.name || ''
+}
 
 export default function Footer() {
+  const { settings } = useSettings()
+  const flat = (settings && settings.flat) || {}
+  const { content } = useSiteContent()
+  const badgeSource = (content && content.badges) || []
+  const badges = (Array.isArray(badgeSource) ? badgeSource : badgeSource.items || [])
+    .map(badgeLabel)
+    .filter(Boolean)
+  const { data: products } = useApi('/loans/products')
+  const productLinks = (Array.isArray(products) ? products : [])
+    .filter((p) => p && p.slug && p.name)
+    .slice(0, 5)
+
   return (
     <footer className="bg-navy-900 text-white">
       <div className="container-page py-16 grid grid-cols-1 md:grid-cols-[1.4fr_1fr_1fr_1.2fr] gap-12">
@@ -30,11 +49,13 @@ export default function Footer() {
         <div>
           <h4 className="font-display font-semibold text-[15px] mb-4">Loan Products</h4>
           <ul className="space-y-2.5 text-[14px] text-white/60">
-            <li><Link to="/loans/home-loan" className="hover:text-green-400 transition-colors">Home Loan</Link></li>
-            <li><Link to="/loans" className="hover:text-green-400 transition-colors">Personal Loan</Link></li>
-            <li><Link to="/loans" className="hover:text-green-400 transition-colors">Business Loan</Link></li>
-            <li><Link to="/loans" className="hover:text-green-400 transition-colors">Car Loan</Link></li>
-            <li><Link to="/loans" className="hover:text-green-400 transition-colors">Bike Loan</Link></li>
+            {productLinks.map((p) => (
+              <li key={p.slug}>
+                <Link to={`/loans/${p.slug}`} className="hover:text-green-400 transition-colors">
+                  {p.name}
+                </Link>
+              </li>
+            ))}
           </ul>
         </div>
 
@@ -53,9 +74,21 @@ export default function Footer() {
         <div>
           <h4 className="font-display font-semibold text-[15px] mb-4">Get in Touch</h4>
           <ul className="space-y-3 text-[14px] text-white/60">
-            <li className="flex gap-2.5"><MapPin size={17} className="shrink-0 mt-0.5 text-green-400" /> 121 Finance Street, Kolkata, West Bengal, India</li>
-            <li className="flex gap-2.5"><Phone size={17} className="shrink-0 mt-0.5 text-green-400" /> +91 98765 43210</li>
-            <li className="flex gap-2.5"><Mail size={17} className="shrink-0 mt-0.5 text-green-400" /> support@jemfinance.com</li>
+            {flat.company_address && (
+              <li className="flex gap-2.5">
+                <MapPin size={17} className="shrink-0 mt-0.5 text-green-400" /> {flat.company_address}
+              </li>
+            )}
+            {flat.company_phone && (
+              <li className="flex gap-2.5">
+                <Phone size={17} className="shrink-0 mt-0.5 text-green-400" /> {flat.company_phone}
+              </li>
+            )}
+            {flat.company_email && (
+              <li className="flex gap-2.5">
+                <Mail size={17} className="shrink-0 mt-0.5 text-green-400" /> {flat.company_email}
+              </li>
+            )}
           </ul>
         </div>
       </div>
@@ -63,7 +96,7 @@ export default function Footer() {
       <div className="border-t border-white/10">
         <div className="container-page py-5 flex flex-col sm:flex-row items-center justify-between gap-3 text-[13px] text-white/45">
           <p>&copy; {new Date().getFullYear()} JEM Finance Private Limited. All rights reserved.</p>
-          <p>NBFC-Registered &middot; RBI Compliant &middot; ISO 27001 Certified</p>
+          {badges.length > 0 && <p>{badges.join(' · ')}</p>}
         </div>
       </div>
     </footer>

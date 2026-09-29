@@ -1,27 +1,62 @@
 import { Target, Eye, Heart, Play } from 'lucide-react'
-import { SectionHeading, Card } from '../components/ui'
-
-const stats = [
-  { value: '10K+', label: 'Happy Customers' },
-  { value: '₹500Cr+', label: 'Loans Disbursed' },
-  { value: '95%', label: 'Approval Rate' },
-  { value: '5+', label: 'Years of Trust' },
-]
-
-const pillars = [
-  { icon: Target, title: 'Our Mission', desc: 'Make credit and investment access simple, fast and fair for every Indian household and business.' },
-  { icon: Eye, title: 'Our Vision', desc: 'To become the most trusted financial partner for a billion aspirations, one milestone at a time.' },
-  { icon: Heart, title: 'Our Values', desc: 'Transparency, integrity and genuine care guide every rate we quote and every decision we make.' },
-]
+import { Card } from '../components/ui'
+import { useSiteContent } from '../lib/content'
+import { errorMessage } from '../lib/api'
 
 export default function About() {
+  const { content, loading, error, refetch } = useSiteContent()
+  const about = (content && content.about_page) || {}
+  const stats = ((content && content.stats) || []).filter(Boolean)
+  const values = Array.isArray(about.values) ? about.values.filter(Boolean) : []
+  const story = String(about.story || '')
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+
+  const pillars = [
+    { icon: Target, title: 'Our Mission', desc: about.mission },
+    {
+      icon: Eye,
+      title: 'Our Vision',
+      desc: about.vision,
+    },
+    {
+      icon: Heart,
+      title: 'Our Values',
+      desc: values.map((v) => [v.title, v.body].filter(Boolean).join(': ')).join(' '),
+    },
+  ]
+
+  if (!content && (loading || error)) {
+    return (
+      <section className="bg-navy-900 py-24">
+        <div className="container-page text-center">
+          <p className="text-white/60 text-[15.5px]">
+            {loading ? 'Loading content...' : errorMessage(error)}
+          </p>
+          {!loading && (
+            <button
+              type="button"
+              onClick={refetch}
+              className="mt-5 px-6 py-2.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-[14.5px] font-semibold transition-colors focus-ring"
+            >
+              Retry
+            </button>
+          )}
+        </div>
+      </section>
+    )
+  }
+
   return (
     <div>
       <section className="bg-navy-900 py-16 lg:py-20">
         <div className="container-page">
-          <p className="text-green-400 font-semibold text-[14px] mb-3">About Us</p>
+          {about.eyebrow && (
+            <p className="text-green-400 font-semibold text-[14px] mb-3">{about.eyebrow}</p>
+          )}
           <h1 className="font-display font-bold text-white text-[36px] sm:text-[44px] leading-tight max-w-2xl">
-            Building a better financial future for everyone
+            {about.title}
           </h1>
         </div>
       </section>
@@ -30,22 +65,15 @@ export default function About() {
         <div className="container-page grid lg:grid-cols-2 gap-14 items-start">
           <div>
             <h2 className="font-display font-bold text-navy-900 text-[26px]">Our Story</h2>
-            <p className="mt-4 text-[15.5px] text-ink-600 leading-relaxed">
-              JEM Finance Private Limited was founded with one conviction: that credit and
-              investment opportunity should not depend on who you know or how much paperwork
-              you can survive. We began as a small home-loan desk in Kolkata and have since
-              grown into a full-spectrum lending and investment platform trusted across the
-              country.
-            </p>
-            <p className="mt-4 text-[15.5px] text-ink-600 leading-relaxed">
-              We believe in providing simple, transparent and reliable financial solutions,
-              helping individuals and businesses achieve their dreams through accessible
-              credit and investment opportunities \u2014 without the jargon or the wait.
-            </p>
+            {story.map((paragraph, i) => (
+              <p key={i} className="mt-4 text-[15.5px] text-ink-600 leading-relaxed">
+                {paragraph}
+              </p>
+            ))}
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 mt-10 pt-8 border-t border-navy-900/8">
               {stats.map((s) => (
-                <div key={s.label}>
+                <div key={s.label || s.value}>
                   <p className="font-display font-bold text-[26px] text-navy-900">{s.value}</p>
                   <p className="text-[13px] text-ink-500 mt-1">{s.label}</p>
                 </div>

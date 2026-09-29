@@ -11,9 +11,11 @@ const perks = [
 export default function AuthShell({ children }) {
   return (
     <div className="min-h-screen grid lg:grid-cols-2">
-      <div className="flex flex-col justify-center px-6 sm:px-12 lg:px-16 py-12">
-        <div className="w-full max-w-sm mx-auto">
-          <div className="mb-8">
+      <div className="relative flex flex-col justify-center px-6 sm:px-12 lg:px-16 py-12 overflow-hidden">
+        <div className="pointer-events-none absolute -top-32 -left-24 w-[420px] h-[420px] rounded-full bg-green-600/12 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-24 -right-16 w-[340px] h-[340px] rounded-full bg-navy-800/10 blur-3xl" />
+        <div className="relative w-full max-w-md mx-auto">
+          <div className="mb-7">
             <Logo />
           </div>
           {children}

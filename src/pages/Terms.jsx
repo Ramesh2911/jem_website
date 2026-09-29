@@ -1,15 +1,36 @@
 import LegalLayout from '../components/LegalLayout'
+import { useSiteContent } from '../lib/content'
+import { errorMessage } from '../lib/api'
 
-const sections = [
-  { heading: 'Acceptance of Terms', body: 'By accessing or using JEM Finance\u2019s website and services, you agree to be bound by these Terms & Conditions and all applicable laws.' },
-  { heading: 'Use of Services', body: 'Our loan and investment services are available to eligible individuals and businesses who meet our verification and underwriting criteria.' },
-  { heading: 'Eligibility', body: 'Applicants must be at least 21 years old, a resident of India, and provide accurate documentation. JEM Finance reserves the right to decline any application.' },
-  { heading: 'Data Security', body: 'JEM Finance implements industry-standard security measures to protect user data submitted during the application and account management process.' },
-  { heading: 'Investment Terms', body: 'Investment returns are indicative and subject to market and credit risk. Past performance does not guarantee future returns.' },
-  { heading: 'Limitation of Liability', body: 'JEM Finance shall not be liable for any indirect, incidental or consequential damages arising from use of our services.' },
-  { heading: 'Contact Us', body: 'Questions about these Terms can be directed to support@jemfinance.com.' },
-]
+const today = () =>
+  new Date().toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' })
 
 export default function Terms() {
-  return <LegalLayout title="Terms & Conditions" updated="01 January 2026" sections={sections} />
+  const { content, loading, error, refetch } = useSiteContent()
+  const block = (content && content.terms_conditions) || null
+  const sections = Array.isArray(block) ? block.filter(Boolean) : []
+  const updated = (block && block.updated) || today()
+
+  if (!content && (loading || error)) {
+    return (
+      <section className="bg-navy-900 py-24">
+        <div className="container-page text-center">
+          <p className="text-white/60 text-[15.5px]">
+            {loading ? 'Loading content...' : errorMessage(error)}
+          </p>
+          {!loading && (
+            <button
+              type="button"
+              onClick={refetch}
+              className="mt-5 px-6 py-2.5 rounded-lg bg-green-600 hover:bg-green-700 text-white text-[14.5px] font-semibold transition-colors focus-ring"
+            >
+              Retry
+            </button>
+          )}
+        </div>
+      </section>
+    )
+  }
+
+  return <LegalLayout title="Terms & Conditions" updated={updated} sections={sections} />
 }
