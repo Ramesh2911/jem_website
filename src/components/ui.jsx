@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Eye, EyeOff, Lock, Smartphone } from 'lucide-react'
+import { AlertCircle, Eye, EyeOff, Lock, Smartphone } from 'lucide-react'
 
 export function Button({ as: As = 'button', className = '', variant = 'primary', size = 'md', children, ...props }) {
   const base = 'inline-flex items-center justify-center gap-2 font-semibold rounded-lg transition-all focus-ring disabled:opacity-50 disabled:pointer-events-none'
@@ -208,4 +208,103 @@ export function Badge({ children, tone = 'green' }) {
     gold: 'bg-gold-100 text-gold-600',
   }
   return <span className={`inline-flex items-center px-3 py-1 rounded-full text-[13px] font-semibold ${tones[tone]}`}>{children}</span>
+}
+
+// ---------------------------------------------------------------------------
+// Portal helpers (shared by the customer / investor dashboard pages)
+// ---------------------------------------------------------------------------
+export function PageHeader({ title, subtitle, action = null }) {
+  return (
+    <div className="flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <h1 className="font-display font-bold text-navy-900 text-[24px]">{title}</h1>
+        {subtitle && <p className="text-ink-500 text-[14px] mt-1">{subtitle}</p>}
+      </div>
+      {action}
+    </div>
+  )
+}
+
+const pillTones = {
+  green: 'bg-green-100 text-green-700',
+  navy: 'bg-navy-100 text-navy-800',
+  gold: 'bg-gold-100 text-gold-600',
+  red: 'bg-red-50 text-red-600',
+  grey: 'bg-navy-50 text-ink-600',
+}
+
+const pillMap = {
+  pending: 'gold',
+  submitted: 'gold',
+  under_review: 'navy',
+  document_verification: 'navy',
+  kyc_pending: 'gold',
+  agreement_pending: 'gold',
+  disbursement_pending: 'gold',
+  draft: 'grey',
+  approved: 'green',
+  active: 'green',
+  paid: 'green',
+  verified: 'green',
+  success: 'green',
+  disbursed: 'green',
+  closed: 'grey',
+  completed: 'green',
+  partial: 'gold',
+  overdue: 'red',
+  rejected: 'red',
+  failed: 'red',
+  cancelled: 'grey',
+  refunded: 'grey',
+}
+
+export const statusTone = (status) => pillMap[String(status || '').toLowerCase()] || 'grey'
+
+export const statusLabel = (status) =>
+  String(status || '')
+    .split('_')
+    .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : ''))
+    .join(' ')
+
+export function StatusPill({ status, label }) {
+  return (
+    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-[12.5px] font-semibold ${pillTones[statusTone(status)]}`}>
+      {label || statusLabel(status)}
+    </span>
+  )
+}
+
+export function ErrorCard({ error, onRetry, message }) {
+  return (
+    <Card className="p-8 mt-6 text-center">
+      <span className="w-11 h-11 rounded-full bg-red-50 text-red-500 grid place-items-center mx-auto">
+        <AlertCircle size={20} />
+      </span>
+      <p className="text-[14.5px] text-ink-600 mt-4">{message || (error && error.message) || 'Something went wrong'}</p>
+      {onRetry && (
+        <Button className="mt-5" onClick={onRetry}>
+          Retry
+        </Button>
+      )}
+    </Card>
+  )
+}
+
+export function EmptyState({ title = 'Nothing here yet', hint }) {
+  return (
+    <div className="rounded-xl bg-navy-50 ring-1 ring-navy-900/5 px-6 py-10 text-center">
+      <p className="text-[14.5px] font-semibold text-navy-900">{title}</p>
+      {hint && <p className="text-[13px] text-ink-500 mt-1.5">{hint}</p>}
+    </div>
+  )
+}
+
+export function LoadingRows({ rows = 3 }) {
+  return (
+    <div className="space-y-3 mt-5">
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="h-14 rounded-xl bg-navy-100 animate-pulse" />
+      ))}
+    </div>
+  )
 }

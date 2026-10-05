@@ -103,6 +103,12 @@ export function useSettings() {
 // ---------------------------------------------------------------------------
 const responseCache = new Map()
 
+// Drop every cached API response (called on logout so the next user never sees
+// the previous session's dashboard data).
+export function resetCaches() {
+  responseCache.clear()
+}
+
 export function cachedGet(path, params) {
   const key = `${path}?${JSON.stringify(params || {})}`
   return responseCache.get(key)

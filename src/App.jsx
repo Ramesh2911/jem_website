@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import PublicLayout from './components/PublicLayout'
+import DashboardLayout from './components/DashboardLayout'
 import Home from './pages/Home'
 import About from './pages/About'
 import LoanProducts from './pages/LoanProducts'
@@ -15,6 +16,15 @@ import PrivacyPolicy from './pages/PrivacyPolicy'
 import Terms from './pages/Terms'
 import CustomerDashboard from './pages/CustomerDashboard'
 import InvestorDashboard from './pages/InvestorDashboard'
+import Profile from './pages/dashboard/Profile'
+import Kyc from './pages/dashboard/Kyc'
+import Notifications from './pages/dashboard/Notifications'
+import ApplyLoan from './pages/dashboard/ApplyLoan'
+import EmiPayments from './pages/dashboard/EmiPayments'
+import AutoPay from './pages/dashboard/AutoPay'
+import Investments from './pages/dashboard/Investments'
+import Withdraw from './pages/dashboard/Withdraw'
+import Statement from './pages/dashboard/Statement'
 
 export default function App() {
   return (
@@ -36,8 +46,26 @@ export default function App() {
 
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
-        <Route path="/dashboard/customer" element={<CustomerDashboard />} />
-        <Route path="/dashboard/investor" element={<InvestorDashboard />} />
+
+        <Route path="/dashboard/customer" element={<DashboardLayout role="customer" />}>
+          <Route index element={<CustomerDashboard />} />
+          <Route path="profile" element={<Profile />} />
+          <Route path="kyc" element={<Kyc role="customer" />} />
+          <Route path="apply" element={<ApplyLoan />} />
+          <Route path="emi" element={<EmiPayments />} />
+          <Route path="auto-pay" element={<AutoPay />} />
+          <Route path="notifications" element={<Notifications />} />
+        </Route>
+
+        <Route path="/dashboard/investor" element={<DashboardLayout role="investor" />}>
+          <Route index element={<InvestorDashboard />} />
+          <Route path="profile" element={<Profile />} />
+          <Route path="investments" element={<Investments />} />
+          <Route path="withdraw" element={<Withdraw />} />
+          <Route path="transactions" element={<Statement />} />
+          <Route path="kyc" element={<Kyc role="investor" />} />
+          <Route path="notifications" element={<Notifications />} />
+        </Route>
 
         <Route path="*" element={<Home />} />
       </Routes>

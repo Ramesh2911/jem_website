@@ -47,11 +47,12 @@ export function isAuthenticated() {
 }
 
 export class ApiError extends Error {
-  constructor(message, status = 0, errors = null) {
+  constructor(message, status = 0, errors = null, data = null) {
     super(message)
     this.name = 'ApiError'
     this.status = status
     this.errors = errors
+    this.data = data
   }
 }
 
@@ -96,7 +97,8 @@ async function request(path, { method = 'GET', body, params, auth = true, retry 
   }
 
   const headers = { Accept: 'application/json' }
-  if (body !== undefined) headers['Content-Type'] = 'application/json'
+  const isFormData = typeof FormData !== 'undefined' && body instanceof FormData
+  if (body !== undefined && !isFormData) headers['Content-Type'] = 'application/json'
   const token = getAccessToken()
   if (auth && token) headers.Authorization = `Bearer ${token}`
 
@@ -122,7 +124,7 @@ async function request(path, { method = 'GET', body, params, auth = true, retry 
 
   if (!res.ok) {
     const message = (json && json.message) || `Request failed (${res.status})`
-    throw new ApiError(message, res.status, json ? json.errors : null)
+    throw new ApiError(message, res.status, json ? json.errors : null, json ? json.data : null)
   }
 
   return json
@@ -135,6 +137,8 @@ export const api = {
   put: (path, body, opts = {}) => request(path, { ...opts, method: 'PUT', body }),
   patch: (path, body, opts = {}) => request(path, { ...opts, method: 'PATCH', body }),
   del: (path, opts = {}) => request(path, { ...opts, method: 'DELETE' }),
+  // multipart upload (FormData) - browser sets the boundary header itself
+  upload: (path, formData, opts = {}) => request(path, { ...opts, method: 'POST', body: formData }),
 }
 
 export { API_URL }

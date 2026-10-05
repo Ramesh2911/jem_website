@@ -2,7 +2,6 @@ import { useEffect } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router-dom'
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from 'recharts'
 import { Landmark, TrendingUp, Wallet, HandCoins, ArrowRight, AlertCircle, RefreshCw, PieChart } from 'lucide-react'
-import DashboardLayout from '../components/DashboardLayout'
 import { Card, Button } from '../components/ui'
 import { isAuthenticated, clearSession, errorMessage, getUser } from '../lib/api'
 import { useApi, cachedGet } from '../lib/content'
@@ -73,7 +72,7 @@ export default function InvestorDashboard() {
   const growth = toSeries(d.growth || d.series || d.chart || d.timeline)
 
   return (
-    <DashboardLayout role="investor">
+    <>
       <h1 className="font-display font-bold text-navy-900 text-[24px]">Welcome, {firstName}</h1>
       <p className="text-ink-500 text-[14px] mt-1">Here's your investment overview.</p>
 
@@ -159,6 +158,6 @@ export default function InvestorDashboard() {
           </div>
         </>
       )}
-    </DashboardLayout>
+    </>
   )
 }

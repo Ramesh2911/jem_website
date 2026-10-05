@@ -1,114 +1,88 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { ArrowRight, Sparkles, AlertCircle, User, Check, Lock, ShieldCheck, ArrowLeft } from 'lucide-react'
+import {
+  ArrowRight, Sparkles, AlertCircle, User, Check, Lock, ShieldCheck, ArrowLeft, Mail, Smartphone,
+} from 'lucide-react'
 import AuthShell from '../components/AuthShell'
-import { Field, Button, MobileInput, PasswordInput, authInputClass } from '../components/ui'
-import { api, errorMessage, setSession } from '../lib/api'
+import { Field, Button, MobileInput, authInputClass } from '../components/ui'
+import { api, errorMessage } from '../lib/api'
+import { openOtpWidget } from '../lib/msg91'
 
 const maskMobile = (m) => `${String(m || '').slice(0, 5)} ${'•'.repeat(5)}`
 
 export default function Register() {
   const [step, setStep] = useState(1)
   const [role, setRole] = useState('customer')
-  const [form, setForm] = useState({ name: '', mobile: '', pw: '', confirm: '' })
+  const [form, setForm] = useState({ name: '', mobile: '', email: '' })
   const [errors, setErrors] = useState({})
   const [agreed, setAgreed] = useState(false)
-  const [loading, setLoading] = useState(false)
   const [formError, setFormError] = useState('')
-  const [devOtp, setDevOtp] = useState('')
-  const [otp, setOtp] = useState('')
-  const [otpError, setOtpError] = useState('')
-  const [otpLoading, setOtpLoading] = useState(false)
-  const [resendLoading, setResendLoading] = useState(false)
+  const [verifyError, setVerifyError] = useState('')
+  const [loginLink, setLoginLink] = useState(false)
+  const [verifying, setVerifying] = useState(false)
   const navigate = useNavigate()
 
   const set = (key) => (value) => {
     setForm((f) => ({ ...f, [key]: value }))
-    setErrors((e) => ({ ...e, [key]: '', ...(key === 'mobile' ? { mobileLogin: false } : {}) }))
-    if (key === 'mobile') setFormError('')
+    setErrors((e) => ({ ...e, [key]: '' }))
+    setFormError('')
+    setVerifyError('')
+    setLoginLink(false)
   }
 
-  const submit = (e) => {
+  const goStep2 = (e) => {
     e.preventDefault()
     const next = {}
-    if (!form.name.trim()) next.name = 'Please enter your full name'
+    if (!form.name.trim() || form.name.trim().length < 2) next.name = 'Please enter your full name'
     if (form.mobile.length !== 10) next.mobile = 'Enter a valid 10-digit mobile number'
-    if (form.pw.length < 8) next.pw = 'Password must be at least 8 characters'
-    if (form.confirm !== form.pw) next.confirm = 'Passwords do not match'
+    if (form.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(form.email.trim())) {
+      next.email = 'Enter a valid email address'
+    }
     if (Object.keys(next).some((k) => next[k])) {
       setErrors(next)
       return
     }
-
-    setLoading(true)
-    setFormError('')
-    api
-      .post('/auth/register', {
-        mobile: form.mobile,
-        userType: role,
-        firstName: form.name.trim(),
-        password: form.pw,
-      })
-      .then((res) => {
-        setDevOtp((res && res.data && res.data.devOtp) || '')
-        setOtp('')
-        setOtpError('')
-        setStep(2)
-      })
-      .catch((err) => {
-        if (err && err.status === 409) {
-          setErrors((e) => ({ ...e, mobile: errorMessage(err), mobileLogin: true }))
-        } else {
-          setFormError(errorMessage(err))
-        }
-      })
-      .finally(() => setLoading(false))
-  }
-
-  const verify = (e) => {
-    e.preventDefault()
-    if (otp.length !== 6) {
-      setOtpError('Enter the 6-digit OTP sent to your mobile')
+    if (!agreed) {
+      setFormError('Please accept the Terms & Conditions and Privacy Policy')
       return
     }
-    setOtpLoading(true)
-    setOtpError('')
-    api
-      .post('/auth/verify-otp', { mobile: form.mobile, otp, purpose: 'register' })
-      .then((res) => {
-        const session = res && res.data
-        setSession(session)
-        navigate(session && session.user && session.user.userType === 'investor' ? '/dashboard/investor' : '/dashboard/customer', {
-          replace: true,
-        })
-      })
-      .catch((err) => setOtpError(errorMessage(err)))
-      .finally(() => setOtpLoading(false))
+    setErrors({})
+    setVerifyError('')
+    setLoginLink(false)
+    setStep(2)
   }
 
-  const resend = () => {
-    setResendLoading(true)
-    setOtpError('')
-    api
-      .post('/auth/send-otp', { mobile: form.mobile, purpose: 'register' })
-      .then((res) => {
-        setDevOtp((res && res.data && res.data.devOtp) || '')
-        setOtp('')
+  const verify = async () => {
+    setVerifying(true)
+    setVerifyError('')
+    setLoginLink(false)
+    try {
+      const token = await openOtpWidget({ identifier: `91${form.mobile}` })
+      await api.post('/auth/register/widget', {
+        token,
+        mobile: form.mobile,
+        firstName: form.name.trim(),
+        email: form.email.trim() || undefined,
+        userType: role,
       })
-      .catch((err) => setOtpError(errorMessage(err)))
-      .finally(() => setResendLoading(false))
+      navigate('/login', { replace: true, state: { registered: form.mobile } })
+    } catch (err) {
+      if (err && err.status === 409) {
+        setVerifyError(errorMessage(err))
+        setLoginLink(true)
+      } else {
+        setVerifyError(errorMessage(err))
+      }
+    } finally {
+      setVerifying(false)
+    }
   }
 
   const error = (key) =>
     errors[key] ? (
-      <span className="flex flex-wrap items-center gap-1.5 text-[12.5px] font-medium text-red-500 mt-1.5">
+      <span className="flex items-center gap-1.5 text-[12.5px] font-medium text-red-500 mt-1.5">
         <AlertCircle size={13} />
         {errors[key]}
-        {key === 'mobile' && errors.mobileLogin && (
-          <Link to="/login" className="text-green-600 font-semibold hover:text-green-700 hover:underline">
-            Login
-          </Link>
-        )}
       </span>
     ) : null
 
@@ -129,13 +103,13 @@ export default function Register() {
           <p className="text-ink-600 text-[14.5px] mt-1.5">
             {step === 1
               ? 'Join JEM Finance & unlock loans and investments.'
-              : `We sent a 6-digit code to +91 ${maskMobile(form.mobile)}.`}
+              : `We will send an OTP to +91 ${maskMobile(form.mobile)} to verify your number.`}
           </p>
 
           <div className="flex items-center gap-3 mt-5 text-[12.5px] font-semibold">
-            <span className={step === 1 ? 'text-green-600' : 'text-ink-400'}>1 Details</span>
+            <span className={step >= 1 ? 'text-green-600' : 'text-ink-400'}>1 Details</span>
             <span className="h-px flex-1 bg-navy-900/10" />
-            <span className={step === 2 ? 'text-green-600' : 'text-ink-400'}>2 Verify</span>
+            <span className={step >= 2 ? 'text-green-600' : 'text-ink-400'}>2 Verify</span>
           </div>
 
           {step === 1 && (
@@ -161,7 +135,7 @@ export default function Register() {
                 ))}
               </div>
 
-              <form onSubmit={submit} className="mt-6 space-y-4">
+              <form onSubmit={goStep2} className="mt-6 space-y-4">
                 <Field label="Full Name">
                   <div className="relative">
                     <span className="absolute left-4 top-1/2 -translate-y-1/2 text-ink-400 pointer-events-none">
@@ -191,29 +165,21 @@ export default function Register() {
                   {error('mobile')}
                 </Field>
 
-                <Field label="Password" hint={'Use 8+ characters with a number & symbol.'}>
-                  <PasswordInput
-                    required
-                    value={form.pw}
-                    invalid={!!errors.pw}
-                    onChange={set('pw')}
-                    autoComplete="new-password"
-                    showStrength
-                    placeholder="Create a strong password"
-                  />
-                  {error('pw')}
-                </Field>
-
-                <Field label="Confirm Password">
-                  <PasswordInput
-                    required
-                    value={form.confirm}
-                    invalid={!!errors.confirm}
-                    onChange={set('confirm')}
-                    autoComplete="new-password"
-                    placeholder="Re-enter your password"
-                  />
-                  {error('confirm')}
+                <Field label="Email" hint="Optional - used for account notifications.">
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-ink-400 pointer-events-none">
+                      <Mail size={16} />
+                    </span>
+                    <input
+                      type="email"
+                      autoComplete="email"
+                      placeholder="you@example.com"
+                      value={form.email}
+                      onChange={(e) => set('email')(e.target.value)}
+                      className={authInputClass('pl-11')}
+                    />
+                  </div>
+                  {error('email')}
                 </Field>
 
                 <label className="flex items-start gap-2.5 text-[13.5px] text-ink-600 cursor-pointer select-none">
@@ -251,74 +217,62 @@ export default function Register() {
                   </span>
                 )}
 
-                <Button type="submit" size="lg" className="w-full" disabled={loading}>
-                  {loading ? 'Please wait...' : 'Create Account'}
-                  {!loading && <ArrowRight size={18} />}
+                <Button type="submit" size="lg" className="w-full">
+                  Continue <ArrowRight size={18} />
                 </Button>
               </form>
             </>
           )}
 
           {step === 2 && (
-            <form onSubmit={verify} className="mt-6 space-y-4">
-              <Field label="Enter 6-digit OTP">
-                <input
-                  required
-                  type="text"
-                  inputMode="numeric"
-                  autoComplete="one-time-code"
-                  maxLength={6}
-                  placeholder="000000"
-                  value={otp}
-                  onChange={(e) => {
-                    setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))
-                    if (otpError) setOtpError('')
-                  }}
-                  className={authInputClass('text-center font-bold text-[19px]')}
-                  style={{ letterSpacing: '0.4em' }}
-                />
-                {otpError && (
-                  <span className="flex items-center gap-1.5 text-[12.5px] font-medium text-red-500 mt-1.5">
-                    <AlertCircle size={13} />
-                    {otpError}
-                  </span>
-                )}
-              </Field>
-
-              {devOtp && (
-                <div className="rounded-lg bg-gold-100 px-3.5 py-2.5 text-[12.5px] font-semibold text-gold-600 ring-1 ring-gold-600/25">
-                  Dev OTP: {devOtp}
+            <div className="mt-6 space-y-4">
+              <div className="rounded-xl bg-navy-50 ring-1 ring-navy-900/5 px-4 py-3.5 space-y-1.5 text-[13.5px]">
+                <div className="flex justify-between gap-3">
+                  <span className="text-ink-500">Name</span>
+                  <span className="font-semibold text-navy-900 truncate">{form.name}</span>
                 </div>
+                <div className="flex justify-between gap-3">
+                  <span className="text-ink-500">Mobile</span>
+                  <span className="font-semibold text-navy-900">+91 {form.mobile}</span>
+                </div>
+                {form.email.trim() && (
+                  <div className="flex justify-between gap-3">
+                    <span className="text-ink-500">Email</span>
+                    <span className="font-semibold text-navy-900 truncate">{form.email}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="rounded-xl bg-green-50 ring-1 ring-green-600/15 px-4 py-3.5 text-[13px] text-ink-600 leading-relaxed">
+                Tap the button below - an OTP window will open. Enter the OTP sent to your number to verify it.
+              </div>
+
+              {verifyError && (
+                <span className="flex flex-wrap items-center gap-1.5 text-[12.5px] font-medium text-red-500">
+                  <AlertCircle size={13} />
+                  {verifyError}
+                  {loginLink && (
+                    <Link to="/login" className="text-green-600 font-semibold hover:text-green-700 hover:underline">
+                      Login
+                    </Link>
+                  )}
+                </span>
               )}
 
-              <Button type="submit" size="lg" className="w-full" disabled={otpLoading}>
-                {otpLoading ? 'Please wait...' : 'Verify & Continue'}
-                {!otpLoading && <ArrowRight size={18} />}
+              <Button type="button" size="lg" className="w-full" onClick={verify} disabled={verifying}>
+                {verifying ? 'Please wait...' : 'Verify phone number'}
+                {!verifying && <Smartphone size={17} />}
               </Button>
 
-              <div className="flex items-center justify-between text-[13px]">
-                <button
-                  type="button"
-                  onClick={resend}
-                  disabled={resendLoading}
-                  className="text-green-600 font-semibold hover:text-green-700 hover:underline disabled:opacity-60 focus-ring"
-                >
-                  {resendLoading ? 'Sending...' : 'Resend OTP'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStep(1)
-                    setOtp('')
-                    setOtpError('')
-                  }}
-                  className="inline-flex items-center gap-1.5 text-ink-600 font-semibold hover:text-navy-900 transition-colors focus-ring"
-                >
-                  <ArrowLeft size={14} />
-                  Change details
-                </button>
-              </div>
-            </form>
+              <button
+                type="button"
+                onClick={() => setStep(1)}
+                className="w-full inline-flex items-center justify-center gap-1.5 text-[13px] text-ink-600 font-semibold hover:text-navy-900 transition-colors focus-ring"
+              >
+                <ArrowLeft size={14} />
+                Change details
+              </button>
+            </div>
           )}
 
           <p className="flex items-center justify-center gap-1.5 text-[12.5px] text-ink-400 mt-5">

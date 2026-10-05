@@ -4,7 +4,6 @@ import {
   HandCoins, Wallet, Landmark, ShieldCheck, ArrowRight, Bell, FileText,
   AlertCircle, RefreshCw, Clock,
 } from 'lucide-react'
-import DashboardLayout from '../components/DashboardLayout'
 import { Card, Button } from '../components/ui'
 import { isAuthenticated, clearSession, errorMessage, getUser } from '../lib/api'
 import { useApi, cachedGet } from '../lib/content'
@@ -94,7 +93,7 @@ export default function CustomerDashboard() {
       }))
 
   return (
-    <DashboardLayout role="customer">
+    <>
       <h1 className="font-display font-bold text-navy-900 text-[24px]">Welcome, {firstName}</h1>
       <p className="text-ink-500 text-[14px] mt-1">Here's your financial overview.</p>
 
@@ -182,6 +181,6 @@ export default function CustomerDashboard() {
           </div>
         </>
       )}
-    </DashboardLayout>
+    </>
   )
 }

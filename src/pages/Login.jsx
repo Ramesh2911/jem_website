@@ -1,44 +1,26 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { ArrowRight, ShieldCheck, AlertCircle, Lock, Check, KeyRound, Smartphone } from 'lucide-react'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
+import { ArrowRight, ShieldCheck, AlertCircle, Lock } from 'lucide-react'
 import AuthShell from '../components/AuthShell'
-import { Field, Button, MobileInput, PasswordInput, authInputClass } from '../components/ui'
+import { Field, Button, MobileInput } from '../components/ui'
 import { api, errorMessage, setSession } from '../lib/api'
-
-const maskMobile = (m) => `${String(m || '').slice(0, 5)} ${'•'.repeat(5)}`
+import { openOtpWidget } from '../lib/msg91'
 
 export default function Login() {
+  const location = useLocation()
+  const registered = (location.state && location.state.registered) || ''
   const [role, setRole] = useState('customer')
-  const [method, setMethod] = useState('password')
   const [mobile, setMobile] = useState('')
-  const [pw, setPw] = useState('')
   const [mobileErr, setMobileErr] = useState('')
   const [formError, setFormError] = useState('')
   const [noAccount, setNoAccount] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [otpSent, setOtpSent] = useState(false)
-  const [otp, setOtp] = useState('')
-  const [otpError, setOtpError] = useState('')
-  const [devOtp, setDevOtp] = useState('')
-  const [remember, setRemember] = useState(false)
   const navigate = useNavigate()
 
   const afterLogin = (session) => {
     navigate(session && session.user && session.user.userType === 'investor' ? '/dashboard/investor' : '/dashboard/customer', {
       replace: true,
     })
-  }
-
-  const switchMethod = (next) => {
-    if (next === method) return
-    setMethod(next)
-    setFormError('')
-    setOtpError('')
-    setNoAccount(false)
-    setOtpSent(false)
-    setOtp('')
-    setDevOtp('')
-    setPw('')
   }
 
   const validMobile = () => {
@@ -49,70 +31,22 @@ export default function Login() {
     return true
   }
 
-  const submitPassword = (e) => {
-    e.preventDefault()
-    if (!validMobile()) return
-    if (!pw) {
-      setFormError('Please enter your password')
-      return
-    }
-    setLoading(true)
-    setFormError('')
-    setNoAccount(false)
-    api
-      .post('/auth/admin/login', { mobile, password: pw })
-      .then((res) => {
-        setSession(res && res.data)
-        afterLogin(res && res.data)
-      })
-      .catch((err) => setFormError(errorMessage(err)))
-      .finally(() => setLoading(false))
-  }
-
-  const sendOtp = () => {
+  const loginWithWidget = async () => {
     if (!validMobile()) return
     setLoading(true)
     setFormError('')
-    setOtpError('')
     setNoAccount(false)
-    api
-      .post('/auth/send-otp', { mobile, purpose: 'login' })
-      .then((res) => {
-        setOtpSent(true)
-        setOtp('')
-        setDevOtp((res && res.data && res.data.devOtp) || '')
-      })
-      .catch((err) => {
-        if (err && err.status === 404) {
-          setNoAccount(true)
-          setFormError(errorMessage(err))
-        } else {
-          setFormError(errorMessage(err))
-        }
-      })
-      .finally(() => setLoading(false))
-  }
-
-  const submitOtp = (e) => {
-    e.preventDefault()
-    if (!otpSent) {
-      sendOtp()
-      return
+    try {
+      const token = await openOtpWidget({ identifier: `91${mobile}` })
+      const res = await api.post('/auth/login/widget', { token, userType: role })
+      setSession(res && res.data)
+      afterLogin(res && res.data)
+    } catch (err) {
+      if (err && err.status === 404) setNoAccount(true)
+      setFormError(errorMessage(err))
+    } finally {
+      setLoading(false)
     }
-    if (otp.length !== 6) {
-      setOtpError('Enter the 6-digit OTP sent to your mobile')
-      return
-    }
-    setLoading(true)
-    setOtpError('')
-    api
-      .post('/auth/login', { mobile, otp })
-      .then((res) => {
-        setSession(res && res.data)
-        afterLogin(res && res.data)
-      })
-      .catch((err) => setOtpError(errorMessage(err)))
-      .finally(() => setLoading(false))
   }
 
   const inlineError = (message) =>
@@ -167,190 +101,40 @@ export default function Login() {
             ))}
           </div>
 
-          <div className="flex items-center gap-2 mt-4">
-            <span className="text-[11.5px] font-bold uppercase tracking-wider text-ink-400">
-              Sign in with
-            </span>
-            <div className="flex gap-1.5">
-              {[
-                { key: 'password', label: 'Password', icon: KeyRound },
-                { key: 'otp', label: 'OTP', icon: Smartphone },
-              ].map(({ key, label, icon: Icon }) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => switchMethod(key)}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[12.5px] font-semibold transition-colors focus-ring ${
-                    method === key
-                      ? 'bg-navy-900 text-white'
-                      : 'bg-navy-50 text-ink-600 hover:text-navy-900 hover:bg-navy-100'
-                  }`}
-                >
-                  <Icon size={13} />
-                  {label}
-                </button>
-              ))}
+          {registered && (
+            <div className="rounded-xl bg-green-50 ring-1 ring-green-600/20 px-4 py-3 mt-5 text-[13px] font-medium text-green-700">
+              Account created for +91 {registered}. Please login with an OTP.
             </div>
-          </div>
-
-          {method === 'password' ? (
-            <form onSubmit={submitPassword} className="mt-6 space-y-4">
-              <Field label="Mobile Number">
-                <MobileInput
-                  required
-                  value={mobile}
-                  invalid={!!mobileErr}
-                  onChange={(v) => {
-                    setMobile(v)
-                    if (mobileErr) setMobileErr('')
-                    if (formError) setFormError('')
-                    if (noAccount) setNoAccount(false)
-                  }}
-                  placeholder="98765 43210"
-                />
-                {inlineError(mobileErr)}
-              </Field>
-
-              <Field label="Password">
-                <PasswordInput
-                  required
-                  value={pw}
-                  invalid={!!formError && !noAccount}
-                  onChange={(v) => {
-                    setPw(v)
-                    if (formError) setFormError('')
-                  }}
-                  autoComplete="current-password"
-                  placeholder="Enter your password"
-                />
-                {inlineError(formError)}
-              </Field>
-
-              <div className="flex items-center justify-between text-[13.5px]">
-                <label className="flex items-center gap-2 text-ink-600 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={remember}
-                    onChange={(e) => setRemember(e.target.checked)}
-                    className="sr-only peer"
-                  />
-                  <span
-                    className={`w-4 h-4 rounded-[5px] border grid place-items-center transition-all ${
-                      remember
-                        ? 'bg-green-600 border-green-600 text-white'
-                        : 'bg-white border-navy-900/25 text-transparent'
-                    }`}
-                  >
-                    <Check size={11} strokeWidth={3.5} />
-                  </span>
-                  Remember me
-                </label>
-                <Link to="#" className="text-green-600 font-semibold hover:text-green-700 hover:underline">
-                  Forgot Password?
-                </Link>
-              </div>
-
-              <Button type="submit" size="lg" className="w-full" disabled={loading}>
-                {loading ? 'Please wait...' : 'Login'}
-                {!loading && <ArrowRight size={18} />}
-              </Button>
-            </form>
-          ) : (
-            <form onSubmit={submitOtp} className="mt-6 space-y-4">
-              <Field label="Mobile Number">
-                <MobileInput
-                  required
-                  value={mobile}
-                  invalid={!!mobileErr}
-                  onChange={(v) => {
-                    setMobile(v)
-                    if (mobileErr) setMobileErr('')
-                    if (formError) setFormError('')
-                    if (noAccount) setNoAccount(false)
-                    if (otpSent) {
-                      setOtpSent(false)
-                      setOtp('')
-                      setOtpError('')
-                      setDevOtp('')
-                    }
-                  }}
-                  placeholder="98765 43210"
-                />
-                {inlineError(mobileErr)}
-              </Field>
-
-              {!otpSent && formError && inlineError(formError)}
-
-              {otpSent && (
-                <Field label="Enter 6-digit OTP">
-                  <input
-                    required
-                    type="text"
-                    inputMode="numeric"
-                    autoComplete="one-time-code"
-                    maxLength={6}
-                    placeholder="000000"
-                    value={otp}
-                    onChange={(e) => {
-                      setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))
-                      if (otpError) setOtpError('')
-                    }}
-                    className={authInputClass('text-center font-bold text-[19px]')}
-                    style={{ letterSpacing: '0.4em' }}
-                  />
-                  {otpError && (
-                    <span className="flex items-center gap-1.5 text-[12.5px] font-medium text-red-500 mt-1.5">
-                      <AlertCircle size={13} />
-                      {otpError}
-                    </span>
-                  )}
-                </Field>
-              )}
-
-              {devOtp && (
-                <div className="rounded-lg bg-gold-100 px-3.5 py-2.5 text-[12.5px] font-semibold text-gold-600 ring-1 ring-gold-600/25">
-                  Dev OTP: {devOtp}
-                </div>
-              )}
-
-              {!otpSent ? (
-                <Button type="button" size="lg" className="w-full" onClick={sendOtp} disabled={loading}>
-                  {loading ? 'Please wait...' : 'Send OTP'}
-                  {!loading && <ArrowRight size={18} />}
-                </Button>
-              ) : (
-                <>
-                  <Button type="submit" size="lg" className="w-full" disabled={loading}>
-                    {loading ? 'Please wait...' : 'Login'}
-                    {!loading && <ArrowRight size={18} />}
-                  </Button>
-
-                  <div className="flex items-center justify-between text-[13px]">
-                    <button
-                      type="button"
-                      onClick={sendOtp}
-                      disabled={loading}
-                      className="text-green-600 font-semibold hover:text-green-700 hover:underline disabled:opacity-60 focus-ring"
-                    >
-                      {loading ? 'Sending...' : `Resend OTP to +91 ${maskMobile(mobile)}`}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setOtpSent(false)
-                        setOtp('')
-                        setOtpError('')
-                        setDevOtp('')
-                      }}
-                      className="text-ink-600 font-semibold hover:text-navy-900 transition-colors focus-ring"
-                    >
-                      Change number
-                    </button>
-                  </div>
-                </>
-              )}
-            </form>
           )}
+
+          <div className="mt-6 space-y-4">
+            <Field label="Mobile Number">
+              <MobileInput
+                required
+                value={mobile}
+                invalid={!!mobileErr}
+                onChange={(v) => {
+                  setMobile(v)
+                  if (mobileErr) setMobileErr('')
+                  if (formError) setFormError('')
+                  if (noAccount) setNoAccount(false)
+                }}
+                placeholder="98765 43210"
+              />
+              {inlineError(mobileErr)}
+            </Field>
+
+            <div className="rounded-xl bg-green-50 ring-1 ring-green-600/15 px-4 py-3.5 text-[13px] text-ink-600 leading-relaxed">
+              Tap the button below - an OTP window will open. Enter the OTP sent to your number to login instantly.
+            </div>
+
+            {formError && inlineError(formError)}
+
+            <Button type="button" size="lg" className="w-full" onClick={loginWithWidget} disabled={loading}>
+              {loading ? 'Verifying...' : 'Send OTP & Login'}
+              {!loading && <ArrowRight size={18} />}
+            </Button>
+          </div>
 
           <p className="flex items-center justify-center gap-1.5 text-[12.5px] text-ink-400 mt-5">
             <Lock size={13} />
