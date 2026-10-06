@@ -64,7 +64,7 @@ export default function Investor() {
           <p className="text-white/60 mt-4 text-[16px] leading-relaxed">
             {invest.subtitle}
           </p>
-          <Button as={Link} to="/register" size="lg" className="mt-8">Start Investing</Button>
+          <Button as={Link} to="/register?role=investor" size="lg" className="mt-8">Start Investing</Button>
         </div>
       </section>
 

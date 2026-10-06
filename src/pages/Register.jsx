@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import {
   ArrowRight, Sparkles, AlertCircle, User, Check, Lock, ShieldCheck, ArrowLeft, Mail, Smartphone,
 } from 'lucide-react'
@@ -11,8 +11,10 @@ import { openOtpWidget } from '../lib/msg91'
 const maskMobile = (m) => `${String(m || '').slice(0, 5)} ${'•'.repeat(5)}`
 
 export default function Register() {
+  const [search] = useSearchParams()
+  const initialRole = search.get('role') === 'investor' ? 'investor' : 'customer'
   const [step, setStep] = useState(1)
-  const [role, setRole] = useState('customer')
+  const [role, setRole] = useState(initialRole)
   const [form, setForm] = useState({ name: '', mobile: '', email: '' })
   const [errors, setErrors] = useState({})
   const [agreed, setAgreed] = useState(false)
@@ -65,7 +67,7 @@ export default function Register() {
         email: form.email.trim() || undefined,
         userType: role,
       })
-      navigate('/login', { replace: true, state: { registered: form.mobile } })
+      navigate('/login', { replace: true, state: { registered: form.mobile, role } })
     } catch (err) {
       if (err && err.status === 409) {
         setVerifyError(errorMessage(err))
@@ -227,6 +229,10 @@ export default function Register() {
           {step === 2 && (
             <div className="mt-6 space-y-4">
               <div className="rounded-xl bg-navy-50 ring-1 ring-navy-900/5 px-4 py-3.5 space-y-1.5 text-[13.5px]">
+                <div className="flex justify-between gap-3">
+                  <span className="text-ink-500">Account type</span>
+                  <span className="font-semibold text-navy-900 capitalize">{role} account</span>
+                </div>
                 <div className="flex justify-between gap-3">
                   <span className="text-ink-500">Name</span>
                   <span className="font-semibold text-navy-900 truncate">{form.name}</span>

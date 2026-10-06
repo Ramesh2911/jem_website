@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import {
-  Activity, CheckCircle2, Clock, ExternalLink, FileText, ShieldCheck, Trash2, Upload, XCircle,
+  Activity, BadgeCheck, Check, CheckCircle2, Clock, ExternalLink, FileText, Send, ShieldCheck,
+  Smartphone, Trash2, XCircle,
 } from 'lucide-react'
 import {
   Card, Button, Field, PageHeader, ErrorCard, LoadingRows, EmptyState,
@@ -14,28 +15,167 @@ const FILE_BASE = API_URL.replace(/\/api\/?$/, '')
 const fileUrl = (path) => (path ? `${FILE_BASE}${path}` : '')
 
 const DOC_TYPES = [
-  { value: 'aadhaar', label: 'Aadhaar card' },
-  { value: 'pan', label: 'PAN card' },
-  { value: 'address_proof', label: 'Address proof' },
-  { value: 'bank_proof', label: 'Bank proof' },
-  { value: 'income_proof', label: 'Income proof' },
-  { value: 'profile_photo', label: 'Profile photo' },
-  { value: 'other', label: 'Other document' },
+  { value: 'aadhaar', label: 'Aadhaar card (OTP verify)' },
+  { value: 'pan', label: 'PAN card (instant verify)' },
 ]
+
+const PAN_RE = /^[A-Z]{5}[0-9]{4}[A-Z]$/
+
+function VerifiedResult({ kind, result }) {
+  if (!result) return null
+  const name = kind === 'pan' ? result.fullName : result.name
+  const address = kind === 'pan'
+    ? [result.address && result.address.line1, result.address && result.address.city, result.address && result.address.state, result.address && result.address.pincode].filter(Boolean).join(', ')
+    : result.address
+  return (
+    <div className="rounded-xl bg-green-50 ring-1 ring-green-600/20 px-4 py-3.5">
+      <div className="flex items-center gap-2">
+        <span className="w-5 h-5 rounded-full bg-green-600 text-white grid place-items-center">
+          <Check size={12} strokeWidth={3.5} />
+        </span>
+        <p className="text-[13.5px] font-bold text-green-700">Verified successfully</p>
+        <span className="ml-auto rounded-full bg-white ring-1 ring-green-600/25 px-2.5 py-0.5 text-[11.5px] font-bold text-green-700">
+          {kind === 'pan' ? 'PAN API' : 'Aadhaar e-KYC'}
+        </span>
+      </div>
+      {(name || result.dob || result.gender) && (
+        <dl className="mt-2.5 grid grid-cols-2 gap-x-4 gap-y-1 text-[13px]">
+          {name && (
+            <div className="col-span-2">
+              <dt className="text-ink-500 inline">Name: </dt>
+              <dd className="inline font-semibold text-navy-900">{name}</dd>
+            </div>
+          )}
+          {result.dob && (
+            <div>
+              <dt className="text-ink-500 inline">DOB: </dt>
+              <dd className="inline font-semibold text-navy-900">{result.dob}</dd>
+            </div>
+          )}
+          {result.gender && (
+            <div>
+              <dt className="text-ink-500 inline">Gender: </dt>
+              <dd className="inline font-semibold text-navy-900">{result.gender}</dd>
+            </div>
+          )}
+          {address && (
+            <div className="col-span-2">
+              <dt className="text-ink-500 inline">Address: </dt>
+              <dd className="inline text-navy-900">{address}</dd>
+            </div>
+          )}
+        </dl>
+      )}
+    </div>
+  )
+}
+
+function AadhaarPanel({ state, setState, onSend, onVerify, pending }) {
+  const step = state.step
+  return (
+    <div>
+      <div className="flex items-center gap-2.5 mb-5">
+        {[
+          { id: 'number', n: 1, label: 'Aadhaar number' },
+          { id: 'otp', n: 2, label: 'Verify OTP' },
+        ].map(({ id, n, label }, i) => {
+          const active = step === id
+          const done = (step === 'otp' && i === 0)
+          return (
+            <span key={id} className="flex items-center gap-2.5">
+              {i > 0 && <span className="w-6 h-px bg-navy-900/15" />}
+              <span
+                className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-[12.5px] font-bold transition-colors ${
+                  active
+                    ? 'bg-navy-900 text-white shadow-md'
+                    : done
+                      ? 'bg-green-100 text-green-700 ring-1 ring-green-600/15'
+                      : 'bg-white text-ink-400 ring-1 ring-navy-900/10'
+                }`}
+              >
+                <span
+                  className={`w-4.5 h-4.5 rounded-full grid place-items-center text-[10.5px] ${
+                    active ? 'bg-green-400 text-navy-900' : done ? 'bg-green-600 text-white' : 'bg-navy-900/10 text-ink-500'
+                  }`}
+                >
+                  {done ? <Check size={10} strokeWidth={3.5} /> : n}
+                </span>
+                {label}
+              </span>
+            </span>
+          )
+        })}
+      </div>
+
+      {step === 'number' ? (
+        <form onSubmit={onSend} className="space-y-4">
+          <Field label="Aadhaar number">
+            <input
+              className={`${inputClass('font-semibold tracking-[0.15em]')} h-11`}
+              type="text"
+              inputMode="numeric"
+              maxLength={12}
+              placeholder="12-digit Aadhaar number"
+              value={state.number}
+              onChange={(e) => setState((s) => ({ ...s, number: e.target.value.replace(/\D/g, '').slice(0, 12) }))}
+              required
+            />
+          </Field>
+          <Button type="submit" disabled={pending || state.number.length !== 12}>
+            <Send size={15} /> {pending ? 'Sending OTP...' : 'Send OTP'}
+          </Button>
+        </form>
+      ) : (
+        <form onSubmit={onVerify} className="space-y-4">
+          <p className="text-[13.5px] text-ink-500 leading-relaxed">
+            Enter the 6-digit OTP sent to the mobile linked with{' '}
+            <span className="font-bold text-navy-900">{state.number}</span>
+          </p>
+          <Field label="OTP">
+            <input
+              className={inputClass('tracking-[0.4em] font-bold text-center text-[17px] h-11')}
+              type="text"
+              inputMode="numeric"
+              maxLength={6}
+              placeholder="––––––"
+              value={state.otp}
+              onChange={(e) => setState((s) => ({ ...s, otp: e.target.value.replace(/\D/g, '').slice(0, 6) }))}
+              required
+              autoFocus
+            />
+          </Field>
+          <div className="flex flex-wrap gap-3">
+            <Button type="submit" disabled={pending || state.otp.length !== 6}>
+              {pending ? 'Verifying...' : 'Verify Aadhaar'}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setState((s) => ({ ...s, step: 'number', otp: '', message: '', error: false }))}
+            >
+              Change number
+            </Button>
+          </div>
+        </form>
+      )}
+    </div>
+  )
+}
 
 export default function Kyc({ role = 'customer' }) {
   const isCustomer = role === 'customer'
   const { data, loading, error, refetch } = useApi('/kyc/status')
-  const [form, setForm] = useState({ documentType: 'aadhaar', documentNumber: '' })
-  const [file, setFile] = useState(null)
+  const [form, setForm] = useState({ documentType: 'aadhaar' })
   const [state, setState] = useState({ message: '', error: false })
   const [pending, setPending] = useState(false)
   const [credit, setCredit] = useState({ score: '', message: '', error: false, pending: false })
+  const [pan, setPan] = useState({ number: '', message: '', error: false, result: null })
+  const [aadhaar, setAadhaar] = useState({ step: 'number', number: '', otp: '', referenceId: '', message: '', error: false, result: null })
 
   if (loading && !data) {
     return (
       <>
-        <PageHeader title="KYC & Documents" subtitle="Upload documents and track verification status." />
+        <PageHeader title="KYC & Documents" subtitle="Verify your KYC documents and track verification status." />
         <LoadingRows rows={4} />
       </>
     )
@@ -44,7 +184,7 @@ export default function Kyc({ role = 'customer' }) {
   if (error && !data) {
     return (
       <>
-        <PageHeader title="KYC & Documents" subtitle="Upload documents and track verification status." />
+        <PageHeader title="KYC & Documents" subtitle="Verify your KYC documents and track verification status." />
         <ErrorCard error={error} onRetry={refetch} />
       </>
     )
@@ -55,32 +195,7 @@ export default function Kyc({ role = 'customer' }) {
   const documents = (data && data.documents) || []
   const pct = progress.total ? Math.round((progress.verified / progress.total) * 100) : 0
   const creditScore = data && data.creditScore
-
-  const upload = async (e) => {
-    e.preventDefault()
-    if (!file) {
-      setState({ message: 'Please choose a file to upload', error: true })
-      return
-    }
-    setPending(true)
-    setState({ message: '', error: false })
-    try {
-      const fd = new FormData()
-      fd.append('documentType', form.documentType)
-      if (form.documentNumber.trim()) fd.append('documentNumber', form.documentNumber.trim())
-      fd.append('file', file)
-      const res = await api.upload('/customers/documents', fd)
-      setState({ message: (res && res.message) || 'Document uploaded', error: false })
-      setFile(null)
-      setForm((s) => ({ ...s, documentNumber: '' }))
-      e.target.reset?.()
-      refetch()
-    } catch (err) {
-      setState({ message: errorMessage(err), error: true })
-    } finally {
-      setPending(false)
-    }
-  }
+  const type = form.documentType
 
   const removeDoc = async (id) => {
     if (!window.confirm('Delete this document?')) return
@@ -92,12 +207,78 @@ export default function Kyc({ role = 'customer' }) {
     }
   }
 
+  const verifyPan = async (e) => {
+    e.preventDefault()
+    const panNumber = pan.number.toUpperCase()
+    if (!PAN_RE.test(panNumber)) {
+      setPan((s) => ({ ...s, message: 'Enter a valid PAN, e.g. ABCDE1234F', error: true }))
+      return
+    }
+    setPan((s) => ({ ...s, message: '', error: false }))
+    setPending(true)
+    try {
+      const res = await api.post('/kyc/verify/pan', { panNumber })
+      setPan({ number: panNumber, message: '', error: false, result: (res && res.data) || {} })
+      refetch()
+    } catch (err) {
+      setPan((s) => ({ ...s, message: errorMessage(err), error: true }))
+    } finally {
+      setPending(false)
+    }
+  }
+
+  const sendAadhaarOtp = async (e) => {
+    e.preventDefault()
+    if (aadhaar.number.length !== 12) {
+      setAadhaar((s) => ({ ...s, message: 'Enter a valid 12-digit Aadhaar number', error: true }))
+      return
+    }
+    setAadhaar((s) => ({ ...s, message: '', error: false }))
+    setPending(true)
+    try {
+      const res = await api.post('/kyc/verify/aadhaar/send-otp', { aadhaarNumber: aadhaar.number })
+      setAadhaar((s) => ({
+        ...s, step: 'otp', otp: '', referenceId: (res && res.data && res.data.referenceId) || '',
+        message: 'OTP sent to the Aadhaar-linked mobile number', error: false,
+      }))
+    } catch (err) {
+      setAadhaar((s) => ({ ...s, message: errorMessage(err), error: true }))
+    } finally {
+      setPending(false)
+    }
+  }
+
+  const verifyAadhaarOtp = async (e) => {
+    e.preventDefault()
+    if (aadhaar.otp.length !== 6) {
+      setAadhaar((s) => ({ ...s, message: 'Enter the 6-digit OTP', error: true }))
+      return
+    }
+    setPending(true)
+    setAadhaar((s) => ({ ...s, message: '', error: false }))
+    try {
+      const res = await api.post('/kyc/verify/aadhaar/verify-otp', {
+        otp: aadhaar.otp,
+        referenceId: aadhaar.referenceId,
+      })
+      setAadhaar((s) => ({
+        ...s, step: 'number', otp: '', referenceId: '',
+        message: '', error: false, result: (res && res.data) || {},
+      }))
+      refetch()
+    } catch (err) {
+      setAadhaar((s) => ({ ...s, message: errorMessage(err), error: true }))
+    } finally {
+      setPending(false)
+    }
+  }
+
   return (
     <>
       <Hero
         eyebrow="KYC & Documents"
         title={statusLabel(status)}
-        subtitle="Upload your identity and income documents — our team verifies them within 24 hours."
+        subtitle="Verify your Aadhaar and PAN instantly with OTP/API."
         chips={[
           { icon: ShieldCheck, label: `${progress.verified} of ${progress.total} verified` },
           creditScore ? { icon: Activity, label: `Credit score ${creditScore}` } : null,
@@ -106,7 +287,7 @@ export default function Kyc({ role = 'customer' }) {
           <Ring
             pct={pct}
             label="Documents verified"
-            hint={progress.total ? `${progress.verified} of ${progress.total} cleared` : 'Nothing uploaded yet'}
+            hint={progress.total ? `${progress.verified} of ${progress.total} cleared` : 'No documents yet'}
           />
         }
       />
@@ -118,46 +299,70 @@ export default function Kyc({ role = 'customer' }) {
       </div>
 
       <div className="grid lg:grid-cols-2 gap-6 mt-6 items-start">
-        <Card className="p-6">
+        <Card className="p-6 min-w-0">
           <IconHeading
-            icon={Upload}
-            title="Upload a document"
-            hint="Accepted: images and PDFs up to 5 MB"
+            icon={type === 'pan' ? BadgeCheck : Smartphone}
+            title={type === 'pan' ? 'PAN verification' : 'Aadhaar verification'}
+            hint={
+              type === 'pan'
+                ? 'Instant API match — no file needed'
+                : 'OTP e-KYC — verified instantly, no file needed'
+            }
           />
-          <form onSubmit={upload} className="space-y-4">
+
+          <div className="space-y-4">
             <Field label="Document type">
               <select
                 className={inputClass()}
-                value={form.documentType}
-                onChange={(e) => setForm((s) => ({ ...s, documentType: e.target.value }))}
+                value={type}
+                onChange={(e) => {
+                  setForm((s) => ({ ...s, documentType: e.target.value }))
+                  setState({ message: '', error: false })
+                }}
               >
                 {DOC_TYPES.map((d) => (
                   <option key={d.value} value={d.value}>{d.label}</option>
                 ))}
               </select>
             </Field>
-            <Field label="Document number (optional)">
-              <input
-                className={inputClass()}
-                type="text"
-                placeholder="e.g. ABCDE1234F"
-                value={form.documentNumber}
-                onChange={(e) => setForm((s) => ({ ...s, documentNumber: e.target.value }))}
+
+            {type === 'pan' && (
+              <form onSubmit={verifyPan} className="space-y-4">
+                <Field label="PAN number">
+                  <input
+                    className={`${inputClass('uppercase tracking-wider font-semibold')} h-11`}
+                    type="text"
+                    maxLength={10}
+                    placeholder="ABCDE1234F"
+                    value={pan.number}
+                    onChange={(e) => setPan((s) => ({ ...s, number: e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10) }))}
+                  />
+                </Field>
+                <Button type="submit" disabled={pending || pan.number.length !== 10} className="w-full">
+                  {pending ? 'Verifying...' : 'Verify PAN'}
+                </Button>
+                <Notice state={{ message: pan.message, error: pan.error }} />
+                <VerifiedResult kind="pan" result={pan.result} />
+              </form>
+            )}
+
+            {type === 'aadhaar' && (
+              <AadhaarPanel
+                state={aadhaar}
+                setState={setAadhaar}
+                onSend={sendAadhaarOtp}
+                onVerify={verifyAadhaarOtp}
+                pending={pending}
               />
-            </Field>
-            <Field label="File">
-              <input
-                className="block w-full text-[14px] text-ink-600 file:mr-3 file:rounded-lg file:border-0 file:bg-green-600 file:px-4 file:py-2 file:text-[13.5px] file:font-semibold file:text-white hover:file:bg-green-700 file:cursor-pointer"
-                type="file"
-                accept="image/*,application/pdf"
-                onChange={(e) => setFile(e.target.files ? e.target.files[0] : null)}
-              />
-            </Field>
-            <Button type="submit" disabled={pending} className="w-full">
-              <Upload size={16} /> {pending ? 'Uploading...' : 'Upload Document'}
-            </Button>
-            <Notice state={state} />
-          </form>
+            )}
+
+            {type === 'aadhaar' && (
+              <>
+                <Notice state={{ message: aadhaar.message, error: aadhaar.error }} />
+                <VerifiedResult kind="aadhaar" result={aadhaar.result} />
+              </>
+            )}
+          </div>
         </Card>
 
         <Card className="p-6">
@@ -234,6 +439,7 @@ export default function Kyc({ role = 'customer' }) {
             </span>
           }
         />
+        <Notice state={state} />
         {documents.length ? (
           <div className="space-y-3">
             {documents.map((doc) => (
@@ -242,7 +448,9 @@ export default function Kyc({ role = 'customer' }) {
                 className="flex flex-wrap items-center gap-3 rounded-xl ring-1 ring-navy-900/8 px-4 py-3 transition-all hover:ring-green-600/25"
               >
                 <span className="w-9 h-9 rounded-lg bg-green-50 text-green-600 ring-1 ring-green-600/10 grid place-items-center shrink-0">
-                  <FileText size={16} />
+                  {doc.document_type === 'aadhaar' ? <Smartphone size={16} />
+                    : doc.document_type === 'pan' ? <BadgeCheck size={16} />
+                      : <FileText size={16} />}
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="text-[14px] font-semibold text-navy-900 capitalize">
@@ -253,6 +461,11 @@ export default function Kyc({ role = 'customer' }) {
                     {doc.rejection_reason ? ` - ${doc.rejection_reason}` : ''}
                   </p>
                 </div>
+                {doc.verification_status === 'verified' && (doc.document_type === 'aadhaar' || doc.document_type === 'pan') && (
+                  <span className="hidden sm:inline rounded-full bg-green-50 text-green-700 ring-1 ring-green-600/20 px-2.5 py-0.5 text-[11.5px] font-bold">
+                    API verified
+                  </span>
+                )}
                 <StatusPill status={doc.verification_status} />
                 {doc.file_path && (
                   <a
@@ -275,7 +488,7 @@ export default function Kyc({ role = 'customer' }) {
             ))}
           </div>
         ) : (
-          <EmptyState title="No documents uploaded yet" hint="Upload your KYC documents using the form above." />
+          <EmptyState title="No documents yet" hint="Verify your Aadhaar/PAN using the panel above." />
         )}
       </Card>
     </>
