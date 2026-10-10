@@ -1,12 +1,11 @@
 import { useState } from 'react'
-import { ChevronDown, ChevronUp, History, Wallet } from 'lucide-react'
+import { ChevronDown, ChevronUp, Copy, History, Wallet, X } from 'lucide-react'
 import {
-  Card, Button, ErrorCard, LoadingRows, EmptyState, StatusPill,
+  Card, Button, ErrorCard, LoadingRows, EmptyState, StatusPill, Field, inputClass,
 } from '../../components/ui'
 import { Hero, GlassStat, IconHeading, Notice } from '../../components/dashui'
 import { api, errorMessage } from '../../lib/api'
 import { useApi } from '../../lib/content'
-import { loadRazorpay } from '../../lib/razorpay'
 import { formatCurrency } from '../../lib/loans'
 
 const inr = (v) => formatCurrency(Number(v) || 0)
@@ -28,6 +27,10 @@ export default function EmiPayments() {
   const [openLoan, setOpenLoan] = useState(null)
   const [schedules, setSchedules] = useState({})
   const [paying, setPaying] = useState(null)
+  const [qrOrder, setQrOrder] = useState(null)
+  const [utr, setUtr] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+  const [copied, setCopied] = useState(false)
   const [notice, setNotice] = useState({ message: '', error: false })
 
   const list = (loans.data && Array.isArray(loans.data) && loans.data) || []
@@ -87,53 +90,48 @@ export default function EmiPayments() {
         paymentType: isPayable(emi.status) && Number(emi.penalty_amount) > 0 ? 'overdue' : 'emi',
       })
       const order = (res && res.data) || {}
-
-      if (order.mode === 'local') {
-        // no Razorpay keys configured - the server accepts a direct verification
-        await api.post('/payments/verify', { paymentId: order.paymentId })
-        afterPayment(`Payment of ${inr(amount)} recorded successfully`)
-        return
-      }
-
-      const Razorpay = await loadRazorpay()
-      const checkout = new Razorpay({
-        key: order.keyId,
-        order_id: order.orderId,
-        amount: order.amount,
-        currency: order.currency || 'INR',
-        name: 'JEM Finance',
-        description: order.description || 'EMI payment',
-        theme: { color: '#178A4C' },
-        handler: async (response) => {
-          try {
-            await api.post('/payments/verify', {
-              paymentId: order.paymentId,
-              razorpayPaymentId: response.razorpay_payment_id,
-              razorpayOrderId: response.razorpay_order_id,
-              razorpaySignature: response.razorpay_signature,
-            })
-            afterPayment(`Payment of ${inr(amount)} successful`)
-          } catch (err) {
-            setNotice({ message: errorMessage(err), error: true })
-          } finally {
-            setPaying(null)
-          }
-        },
-        modal: {
-          ondismiss: () => setPaying(null),
-        },
-      })
-      checkout.on('payment.failed', (resp) => {
-        setNotice({
-          message: (resp && resp.error && resp.error.description) || 'Payment failed. Please try again.',
-          error: true,
-        })
-        setPaying(null)
-      })
-      checkout.open()
+      setUtr('')
+      setCopied(false)
+      setQrOrder({ ...order, emi })
     } catch (err) {
       setNotice({ message: errorMessage(err), error: true })
       setPaying(null)
+    }
+  }
+
+  const closeQr = () => {
+    setQrOrder(null)
+    setPaying(null)
+    setUtr('')
+    setCopied(false)
+  }
+
+  const copyUpi = async () => {
+    if (!qrOrder || !qrOrder.upiId) return
+    try {
+      await navigator.clipboard.writeText(qrOrder.upiId)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1800)
+    } catch { /* clipboard unavailable */ }
+  }
+
+  const submitUtr = async () => {
+    if (!qrOrder || submitting) return
+    const clean = utr.trim()
+    if (!/^[A-Za-z0-9]{6,30}$/.test(clean)) {
+      setNotice({ message: 'Enter a valid UTR / transaction ID from your payment app (6-30 characters).', error: true })
+      return
+    }
+    setSubmitting(true)
+    try {
+      const res = await api.post('/payments/qr-confirm', { paymentId: qrOrder.paymentId, utr: clean })
+      const msg = (res && res.message) || `Payment of ${inr(qrOrder.amount)} reported`
+      closeQr()
+      afterPayment(msg)
+    } catch (err) {
+      setNotice({ message: errorMessage(err), error: true })
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -319,6 +317,95 @@ export default function EmiPayments() {
             </div>
           )}
         </Card>
+      )}
+
+      {qrOrder && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="UPI QR payment">
+          <div
+            className="absolute inset-0 bg-navy-900/60 backdrop-blur-[2px]"
+            onClick={closeQr}
+          />
+          <div className="relative w-full max-w-md max-h-[92vh] overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl ring-1 ring-navy-900/10">
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-green-600">UPI QR payment</p>
+                <h3 className="font-display text-lg font-bold text-navy-900 mt-1 truncate">{qrOrder.description}</h3>
+              </div>
+              <button
+                type="button"
+                onClick={closeQr}
+                aria-label="Close"
+                className="shrink-0 rounded-lg p-1.5 text-ink-400 transition-colors hover:bg-navy-50 hover:text-navy-900 focus-ring"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl bg-navy-50 px-4 py-3">
+              <span className="text-[13px] font-medium text-ink-500">Amount to pay</span>
+              <span className="font-display text-xl font-bold tabular-nums text-navy-900">{inr(qrOrder.amount)}</span>
+            </div>
+            <p className="mt-1.5 text-[12.5px] text-ink-500">
+              EMI {inr(qrOrder.emiAmount)}
+              {Number(qrOrder.emi && qrOrder.emi.penalty_amount) > 0 ? ` + penalty ${inr(qrOrder.emi.penalty_amount)}` : ''}
+              {' — '}pay the exact amount
+            </p>
+
+            <div className="mx-auto mt-4 w-fit rounded-2xl border border-navy-900/10 bg-white p-3">
+              <img
+                src={qrOrder.qrImage || '/loan.qr.jpeg'}
+                alt="UPI QR code"
+                className="h-52 w-52 object-contain"
+              />
+            </div>
+
+            <div className="mt-4 flex items-center justify-between gap-3 rounded-xl px-3.5 py-2.5 ring-1 ring-navy-900/10">
+              <div className="min-w-0">
+                <p className="text-[10.5px] font-bold uppercase tracking-wider text-ink-400">UPI ID</p>
+                <p className="truncate font-mono text-[13.5px] font-semibold text-navy-900">{qrOrder.upiId}</p>
+              </div>
+              <button
+                type="button"
+                onClick={copyUpi}
+                className="flex shrink-0 items-center gap-1.5 rounded-lg px-2 py-1 text-[12.5px] font-bold text-green-600 transition-colors hover:bg-green-50 hover:text-green-700 focus-ring"
+              >
+                <Copy size={13} />
+                {copied ? 'Copied!' : 'Copy'}
+              </button>
+            </div>
+
+            <ol className="mt-4 list-inside list-decimal space-y-1.5 text-[13px] text-ink-600 marker:font-bold marker:text-green-600">
+              <li>Open any UPI app &amp; scan the QR (or use the UPI ID)</li>
+              <li>Pay exactly <span className="font-semibold text-navy-900">{inr(qrOrder.amount)}</span></li>
+              <li>Copy the UTR / transaction ID from your payment app</li>
+            </ol>
+
+            <div className="mt-4">
+              <Field label="UTR / Transaction ID" hint="Found in your UPI app after payment">
+                <input
+                  className={inputClass('w-full')}
+                  value={utr}
+                  onChange={(e) => setUtr(e.target.value)}
+                  placeholder="e.g. 402915876321"
+                  maxLength={30}
+                  autoComplete="off"
+                />
+              </Field>
+            </div>
+
+            <div className="mt-5 flex gap-3">
+              <Button variant="outline" className="flex-1" onClick={closeQr} disabled={submitting}>
+                Cancel
+              </Button>
+              <Button className="flex-1" onClick={submitUtr} disabled={submitting || !utr.trim()}>
+                {submitting ? 'Submitting...' : 'I have paid'}
+              </Button>
+            </div>
+            <p className="mt-3 text-center text-[12px] text-ink-400">
+              The instalment is marked paid after our team verifies your payment.
+            </p>
+          </div>
+        </div>
       )}
     </>
   )
