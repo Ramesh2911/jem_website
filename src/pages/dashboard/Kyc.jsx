@@ -12,7 +12,11 @@ import { api, API_URL, errorMessage } from '../../lib/api'
 import { useApi } from '../../lib/content'
 
 const FILE_BASE = API_URL.replace(/\/api\/?$/, '')
-const fileUrl = (path) => (path ? `${FILE_BASE}${path}` : '')
+const fileUrl = (path) => {
+  if (!path) return ''
+  if (/^https?:\/\//i.test(path)) return path
+  return `${FILE_BASE}${path}`
+}
 
 const DOC_TYPES = [
   { value: 'aadhaar', label: 'Aadhaar card (OTP verify)' },
@@ -168,7 +172,7 @@ export default function Kyc({ role = 'customer' }) {
   const [form, setForm] = useState({ documentType: 'aadhaar' })
   const [state, setState] = useState({ message: '', error: false })
   const [pending, setPending] = useState(false)
-  const [credit, setCredit] = useState({ score: '', message: '', error: false, pending: false })
+  const [credit, setCredit] = useState({ step: 'send', otp: '', message: '', error: false, pending: false, reportPdf: null })
   const [pan, setPan] = useState({ number: '', message: '', error: false, result: null })
   const [aadhaar, setAadhaar] = useState({ step: 'number', number: '', otp: '', referenceId: '', message: '', error: false, result: null })
 
@@ -270,6 +274,38 @@ export default function Kyc({ role = 'customer' }) {
       setAadhaar((s) => ({ ...s, message: errorMessage(err), error: true }))
     } finally {
       setPending(false)
+    }
+  }
+
+  const sendCibilOtp = async (e) => {
+    e.preventDefault()
+    setCredit((s) => ({ ...s, pending: true, message: '', error: false }))
+    try {
+      const res = await api.post('/customers/credit-score/cibil/send-otp', {})
+      setCredit((s) => ({
+        ...s, step: 'otp', otp: '', pending: false,
+        message: (res && res.message) || 'Consent OTP sent to your registered mobile',
+        error: false,
+      }))
+    } catch (err) {
+      setCredit((s) => ({ ...s, pending: false, message: errorMessage(err), error: true }))
+    }
+  }
+
+  const checkCibil = async (e) => {
+    e.preventDefault()
+    if (credit.otp.length !== 6) {
+      setCredit((s) => ({ ...s, message: 'Enter the 6-digit OTP', error: true }))
+      return
+    }
+    setCredit((s) => ({ ...s, pending: true, message: '', error: false }))
+    try {
+      const res = await api.post('/customers/credit-score/cibil/check', { otp: credit.otp })
+      const d = (res && res.data) || {}
+      setCredit({ step: 'send', otp: '', message: 'Credit score verified', error: false, pending: false, reportPdf: d.reportPdf || null })
+      refetch()
+    } catch (err) {
+      setCredit((s) => ({ ...s, pending: false, message: errorMessage(err), error: true }))
     }
   }
 
@@ -387,43 +423,67 @@ export default function Kyc({ role = 'customer' }) {
           </div>
 
           {isCustomer && (
-            <form
-              className="flex flex-wrap items-end gap-3 mt-4"
-              onSubmit={async (e) => {
-                e.preventDefault()
-                const score = Number(credit.score)
-                if (!score || score < 300 || score > 900) {
-                  setCredit((s) => ({ ...s, message: 'Score must be between 300 and 900', error: true }))
-                  return
-                }
-                setCredit((s) => ({ ...s, pending: true, message: '', error: false }))
-                try {
-                  await api.post('/customers/credit-score', { score })
-                  setCredit({ score: '', message: 'Credit score submitted for verification', error: false, pending: false })
-                  refetch()
-                } catch (err) {
-                  setCredit((s) => ({ ...s, pending: false, message: errorMessage(err), error: true }))
-                }
-              }}
-            >
-              <input
-                className={`${inputClass('w-40')} h-10`}
-                type="number"
-                min={300}
-                max={900}
-                placeholder="300 - 900"
-                value={credit.score}
-                onChange={(e) => setCredit((s) => ({ ...s, score: e.target.value }))}
-              />
-              <Button type="submit" size="sm" disabled={credit.pending}>
-                {credit.pending ? 'Submitting...' : 'Submit Score'}
-              </Button>
+            <div className="mt-4 space-y-4">
+              {credit.step === 'send' ? (
+                <form onSubmit={sendCibilOtp}>
+                  <p className="text-[13.5px] text-ink-500 leading-relaxed mb-3">
+                    Pull your CIBIL score instantly from CRIF with a consent OTP sent to your
+                    registered mobile number.
+                  </p>
+                  <Button type="submit" size="sm" disabled={credit.pending}>
+                    <Send size={14} /> {credit.pending ? 'Sending OTP...' : 'Check my CIBIL score'}
+                  </Button>
+                </form>
+              ) : (
+                <form onSubmit={checkCibil} className="space-y-3">
+                  <p className="text-[13.5px] text-ink-500 leading-relaxed">
+                    Enter the consent OTP to authorize your credit report pull.
+                  </p>
+                  <Field label="Consent OTP">
+                    <input
+                      className={inputClass('tracking-[0.4em] font-bold text-center text-[17px] h-11')}
+                      type="text"
+                      inputMode="numeric"
+                      maxLength={6}
+                      placeholder="––––––"
+                      value={credit.otp}
+                      onChange={(e) => setCredit((s) => ({ ...s, otp: e.target.value.replace(/\D/g, '').slice(0, 6) }))}
+                      required
+                      autoFocus
+                    />
+                  </Field>
+                  <div className="flex flex-wrap gap-3">
+                    <Button type="submit" size="sm" disabled={credit.pending || credit.otp.length !== 6}>
+                      {credit.pending ? 'Checking (may take 10s)...' : 'Verify & Check Score'}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      disabled={credit.pending}
+                      onClick={() => setCredit((s) => ({ ...s, step: 'send', otp: '', message: '', error: false }))}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </form>
+              )}
               {credit.message && (
-                <p className={`w-full text-[13px] font-semibold ${credit.error ? 'text-red-600' : 'text-green-700'}`}>
+                <p className={`text-[13px] font-semibold ${credit.error ? 'text-red-600' : 'text-green-700'}`}>
                   {credit.message}
                 </p>
               )}
-            </form>
+              {credit.reportPdf && (
+                <a
+                  href={credit.reportPdf}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1.5 text-[13.5px] font-bold text-green-700 hover:underline focus-ring"
+                >
+                  <ExternalLink size={14} /> View full credit report (PDF)
+                </a>
+              )}
+            </div>
           )}
         </Card>
       </div>

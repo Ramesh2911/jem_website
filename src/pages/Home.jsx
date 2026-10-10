@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { ShieldCheck, Zap, FileCheck2, Users, ArrowRight, Star } from 'lucide-react'
 import { Button, Card, SectionHeading, Badge } from '../components/ui'
@@ -8,6 +9,47 @@ import loanImg from '../assets/loan.jpeg'
 
 const TRUST_ICONS = [ShieldCheck, Zap, FileCheck2, Users]
 
+// "₹500Cr+" -> { prefix: '₹', target: 500, suffix: 'Cr+' } (used by the stat count-up)
+function parseStat(raw) {
+  const m = String(raw || '').match(/^([^\d]*)(\d+(?:\.\d+)?)(.*)$/)
+  if (!m) return null
+  return { prefix: m[1], target: Number(m[2]), suffix: m[3], decimals: (m[2].split('.')[1] || '').length }
+}
+
+function StatValue({ value, started }) {
+  const [text, setText] = useState(value)
+
+  useEffect(() => {
+    const p = parseStat(value)
+    if (!p || !started) {
+      setText(value)
+      return undefined
+    }
+    const reduce = typeof window !== 'undefined'
+      && window.matchMedia
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const fmt = (n) => `${p.prefix}${n.toLocaleString('en-IN', { minimumFractionDigits: p.decimals, maximumFractionDigits: p.decimals })}${p.suffix}`
+    if (reduce) {
+      setText(fmt(p.target))
+      return undefined
+    }
+    let raf
+    const duration = 1800
+    const t0 = performance.now()
+    const step = (t) => {
+      const progress = Math.min(1, (t - t0) / duration)
+      const eased = 1 - Math.pow(1 - progress, 3)
+      setText(fmt(p.target * eased))
+      if (progress < 1) raf = requestAnimationFrame(step)
+      else setText(fmt(p.target))
+    }
+    raf = requestAnimationFrame(step)
+    return () => cancelAnimationFrame(raf)
+  }, [value, started])
+
+  return <>{text}</>
+}
+
 export default function Home() {
   const { content, loading, error, refetch } = useSiteContent()
   const {
@@ -16,6 +58,30 @@ export default function Home() {
     error: productsError,
     refetch: refetchProducts,
   } = useApi('/loans/products')
+
+  const statsRef = useRef(null)
+  const [statsStarted, setStatsStarted] = useState(false)
+
+  useEffect(() => {
+    if (statsStarted) return undefined
+    const el = statsRef.current
+    if (!el) return undefined
+    if (!('IntersectionObserver' in window)) {
+      setStatsStarted(true)
+      return undefined
+    }
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setStatsStarted(true)
+          io.disconnect()
+        }
+      },
+      { threshold: 0.35 }
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [statsStarted])
 
   const hero = (content && content.hero) || {}
   const trust = ((content && content.trust_badges) || []).filter(Boolean)
@@ -117,16 +183,24 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="py-10 bg-white border-y border-navy-900/6">
-        <div className="container-page grid grid-cols-2 sm:grid-cols-4 gap-8">
-          {stats.map((s) => (
-            <div key={s.label || s.value} className="text-center">
-              <p className="font-display font-bold text-[30px] text-navy-900">{s.value}</p>
-              <p className="text-[13.5px] text-ink-500 mt-1">{s.label}</p>
-            </div>
-          ))}
-        </div>
-      </section>
+      {stats.length > 0 && (
+        <section ref={statsRef} className="py-10 bg-white border-y border-navy-900/6">
+          <div className="container-page grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-5">
+            {stats.map((s) => (
+              <div
+                key={s.label || s.value}
+                className="text-center rounded-2xl bg-navy-50 ring-1 ring-navy-900/6 px-4 py-7 transition-all hover:-translate-y-1 hover:shadow-xl hover:ring-green-600/25"
+              >
+                <p className="font-display font-bold text-[30px] sm:text-[32px] text-navy-900 tabular-nums">
+                  <StatValue value={s.value} started={statsStarted} />
+                </p>
+                <span className="mx-auto mt-3 block h-1 w-8 rounded-full bg-green-600/70" />
+                <p className="text-[13.5px] text-ink-500 mt-2.5">{s.label}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="py-20 bg-white">
         <div className="container-page">
